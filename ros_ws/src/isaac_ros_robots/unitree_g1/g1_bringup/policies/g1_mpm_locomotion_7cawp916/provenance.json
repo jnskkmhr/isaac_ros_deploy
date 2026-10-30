@@ -1,0 +1,16 @@
+{
+  "wandb_run": "7cawp916",
+  "wandb_project": "g1_29dof_mpm_mixed_terrain",
+  "checkpoint": "model_16000.pt",
+  "checkpoint_sha256": "20b9862063f49892c47529b4e6f71baf69ecc2bc081e0e91c8c0be632f855b36",
+  "export_task": "IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play",
+  "policy_frequency_hz": 50.0,
+  "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor weights unchanged.",
+  "export_simulation_note": "CUDA graph capture enabled during export.",
+  "actor_observation_groups": [
+    "policy",
+    "command"
+  ],
+  "export_validation_examples": 5,
+  "ros_adaptation_validation_steps": 25
+}

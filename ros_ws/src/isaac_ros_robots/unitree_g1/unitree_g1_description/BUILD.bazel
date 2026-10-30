@@ -1,0 +1,161 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@isaac_ros2_rules//ros:defs.bzl", "ament_index_share_files")
+load("//workspace/shared/pkg:ros_pkg.bzl", "ros")
+
+package(default_visibility = ["//visibility:public"])
+
+# Apply the add_g1_29_dof_with_hand patch to upstream MJCF files.
+genrule(
+    name = "patch_mjcf",
+    srcs = [
+        "@unitree_mujoco//:g1_29dof.xml",
+        "@unitree_mujoco//:scene_29dof.xml",
+        "//workspace/shared/third_party/unitree_g1_description:patches/add_g1_29_dof_with_hand.patch",
+    ],
+    outs = [
+        "mjcf/g1_29dof.xml",
+        "mjcf/g1_29dof_with_hand.xml",
+        "mjcf/scene_29dof.xml",
+        "mjcf/scene_29dof_with_hand.xml",
+    ],
+    cmd = " && ".join([
+        "WORK=$(@D)/patch_work",
+        "mkdir -p $$WORK/unitree_robots/g1",
+        "cp $(location @unitree_mujoco//:g1_29dof.xml) $$WORK/unitree_robots/g1/g1_29dof.xml",
+        "cp $(location @unitree_mujoco//:scene_29dof.xml) $$WORK/unitree_robots/g1/scene_29dof.xml",
+        "(patch --forward --reject-file=/dev/null -p0 -d $$WORK -i $$(pwd)/$(location //workspace/shared/third_party/unitree_g1_description:patches/add_g1_29_dof_with_hand.patch))",
+        "test -f $$WORK/unitree_robots/g1/g1_29dof_with_hand.xml",
+        "test -f $$WORK/unitree_robots/g1/scene_29dof_with_hand.xml",
+        "for f in g1_29dof.xml g1_29dof_with_hand.xml scene_29dof.xml scene_29dof_with_hand.xml; do sed 's|meshdir=\"meshes\"|meshdir=\"../meshes\"|g' $$WORK/unitree_robots/g1/$$f > $(@D)/mjcf/$$f; done",
+    ]),
+)
+
+# Fix URDF mesh paths.
+genrule(
+    name = "fix_urdf",
+    srcs = ["@unitree_ros//:g1_29dof_with_hand_rev_1_0.urdf"],
+    outs = ["urdf/g1_29dof_with_hand_rev_1_0_fixed.urdf"],
+    cmd = "sed -e 's|filename=\"meshes/|filename=\"package://unitree_g1_description/meshes/|g' -e 's/_rev_1_0\\.STL/.STL/g' $< > $@",
+)
+
+# Also expose the official 29-joint description with fixed rubber hands.
+genrule(
+    name = "fix_urdf_no_hands",
+    srcs = ["@unitree_ros//:g1_29dof_rev_1_0.urdf"],
+    outs = ["urdf/g1_29dof_rev_1_0_fixed.urdf"],
+    cmd = "sed -e 's|filename=\"meshes/|filename=\"package://unitree_g1_description/meshes/|g' -e 's/_rev_1_0\\.STL/.STL/g' $< > $@",
+)
+
+# Copy meshes from external repo.
+genrule(
+    name = "copy_meshes",
+    srcs = ["@unitree_mujoco//:meshes"],
+    outs = [
+        "meshes/head_link.STL",
+        "meshes/left_ankle_pitch_link.STL",
+        "meshes/left_ankle_roll_link.STL",
+        "meshes/left_elbow_link.STL",
+        "meshes/left_hand_index_0_link.STL",
+        "meshes/left_hand_index_1_link.STL",
+        "meshes/left_hand_middle_0_link.STL",
+        "meshes/left_hand_middle_1_link.STL",
+        "meshes/left_hand_palm_link.STL",
+        "meshes/left_hand_thumb_0_link.STL",
+        "meshes/left_hand_thumb_1_link.STL",
+        "meshes/left_hand_thumb_2_link.STL",
+        "meshes/left_hip_pitch_link.STL",
+        "meshes/left_hip_roll_link.STL",
+        "meshes/left_hip_yaw_link.STL",
+        "meshes/left_knee_link.STL",
+        "meshes/left_rubber_hand.STL",
+        "meshes/left_shoulder_pitch_link.STL",
+        "meshes/left_shoulder_roll_link.STL",
+        "meshes/left_shoulder_yaw_link.STL",
+        "meshes/left_wrist_pitch_link.STL",
+        "meshes/left_wrist_roll_link.STL",
+        "meshes/left_wrist_yaw_link.STL",
+        "meshes/logo_link.STL",
+        "meshes/pelvis.STL",
+        "meshes/pelvis_contour_link.STL",
+        "meshes/right_ankle_pitch_link.STL",
+        "meshes/right_ankle_roll_link.STL",
+        "meshes/right_elbow_link.STL",
+        "meshes/right_hand_index_0_link.STL",
+        "meshes/right_hand_index_1_link.STL",
+        "meshes/right_hand_middle_0_link.STL",
+        "meshes/right_hand_middle_1_link.STL",
+        "meshes/right_hand_palm_link.STL",
+        "meshes/right_hand_thumb_0_link.STL",
+        "meshes/right_hand_thumb_1_link.STL",
+        "meshes/right_hand_thumb_2_link.STL",
+        "meshes/right_hip_pitch_link.STL",
+        "meshes/right_hip_roll_link.STL",
+        "meshes/right_hip_yaw_link.STL",
+        "meshes/right_knee_link.STL",
+        "meshes/right_rubber_hand.STL",
+        "meshes/right_shoulder_pitch_link.STL",
+        "meshes/right_shoulder_roll_link.STL",
+        "meshes/right_shoulder_yaw_link.STL",
+        "meshes/right_wrist_pitch_link.STL",
+        "meshes/right_wrist_roll_link.STL",
+        "meshes/right_wrist_yaw_link.STL",
+        "meshes/torso_link.STL",
+        "meshes/waist_roll_link.STL",
+        "meshes/waist_support_link.STL",
+        "meshes/waist_yaw_link.STL",
+    ],
+    cmd = "for src in $(locations @unitree_mujoco//:meshes); do base=$$(basename $$src); cp $$src $(@D)/meshes/$$base; done",
+)
+
+ament_index_share_files(
+    name = "unitree_g1_description_pkg",
+    package_name = "unitree_g1_description",
+    srcs = [
+        "package.xml",
+        "patches/add_g1_29_dof_with_hand.patch",
+        "urdf/g1_isaacsim.urdf.xacro",
+        "urdf/g1_isaacsim_ros2_control.urdf.xacro",
+        "urdf/g1_real_hardware.urdf.xacro",
+        "urdf/g1_real_ros2_control.urdf.xacro",
+        "urdf/g1_ros2_control.urdf.xacro",
+        "urdf/g1_with_ros2_control.urdf.xacro",
+        "urdf/g1_with_ros2_control_full.urdf.xacro",
+        ":copy_meshes",
+        ":fix_urdf",
+        ":fix_urdf_no_hands",
+        ":patch_mjcf",
+    ],
+)
+
+ros.pkg_deb(
+    name = "ros_unitree_g1_description_deb",
+    share_srcs = [
+        "urdf/g1_isaacsim.urdf.xacro",
+        "urdf/g1_isaacsim_ros2_control.urdf.xacro",
+        "urdf/g1_real_hardware.urdf.xacro",
+        "urdf/g1_real_ros2_control.urdf.xacro",
+        "urdf/g1_ros2_control.urdf.xacro",
+        "urdf/g1_with_ros2_control.urdf.xacro",
+        "urdf/g1_with_ros2_control_full.urdf.xacro",
+        "patches/add_g1_29_dof_with_hand.patch",
+        ":copy_meshes",
+        ":fix_urdf",
+        ":fix_urdf_no_hands",
+        ":patch_mjcf",
+    ],
+)

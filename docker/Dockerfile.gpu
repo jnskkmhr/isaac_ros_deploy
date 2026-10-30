@@ -1,0 +1,20 @@
+# syntax=docker/dockerfile:1
+# SPDX-License-Identifier: Apache-2.0
+# Build the shared CPU/development image first on the target architecture.
+ARG BASE_IMAGE=isaac-ros-deploy:cpu
+FROM ${BASE_IMAGE}
+ARG DEPLOY_PROFILE=x86-gpu
+ENV DEPLOY_PROFILE=${DEPLOY_PROFILE}
+ENV ISAAC_DEPLOY_BACKEND=triton
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnuma1 libxml2 libcurl4t64 libb64-0d libre2-10 lshw \
+    && rm -rf /var/lib/apt/lists/*
+COPY docker/gpu_dependencies.json /opt/gpu_dependencies.json
+COPY docker/install_gpu_dependencies.py /opt/install_gpu_dependencies.py
+RUN --mount=type=cache,target=/var/cache/deploy-gpu \
+    python3 /opt/install_gpu_dependencies.py "${DEPLOY_PROFILE}"
+# Precedence matters: Triton's ORT must not load the CPU adapter's ORT library.
+ENV LD_LIBRARY_PATH=/opt/tritonserver/lib:/opt/tritonserver/backends/onnxruntime:/opt/cuda/lib
+ENV TRITON_BACKEND_DIRECTORY=/opt/tritonserver/backends
+ENV TRITON_SERVER_ROOT=/opt/tritonserver
+COPY docker/entrypoint.sh /deploy-entrypoint.sh

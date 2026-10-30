@@ -1,0 +1,534 @@
+"""
+Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+NVIDIA CORPORATION and its licensors retain all intellectual property
+and proprietary rights in and to this software, related documentation
+and any modifications thereto. Any use, reproduction, disclosure or
+distribution of this software and related documentation without an express
+license agreement from NVIDIA CORPORATION is strictly prohibited.
+"""
+
+load(
+    "@isaac_ros2_rules//ros:defs.bzl",
+    "ament_index_share_files",
+    "ros2_cc_binary",
+    "ros2_cc_library",
+    "ros2_cc_shared_library",
+    "ros2_cc_test",
+    "ros2_py_binary",
+    "ros2_py_library",
+    "ros2_py_test",
+    "ros_ws",
+)
+load("@isaac_ros_deploy_pip//:requirements.bzl", "requirement")
+load("//workspace/shared/build:utils.bzl", "BASE_ROS_PACKAGE_FILES", "ament_index_paths", "load_paths")
+load("//workspace/shared/bzl:defaults.bzl", "REMOTE_EXECUTION_GPU_PROPERTIES")
+load("//workspace/shared/pip/pytorch:load_paths.bzl", "torch_debian_runtime_rpaths")
+load("//workspace/shared/pkg:ros_pkg.bzl", "ros")
+
+package(
+    default_visibility = ["//visibility:public"],
+    features = ["c++20"],
+)
+
+ros_ws(
+    name = "ros_ws",
+    ament_index_paths = ament_index_paths(add_nvvpi_paths = True),
+    files = BASE_ROS_PACKAGE_FILES + [
+        "//workspace/shared/third_party/cuda",
+        "@cvcuda_dev//:so_files",
+        "@hpcx",
+        "@libnvvpi4//:files",
+        "@nvidia//datacenter-gpu-manager-4-cuda13:so_files",
+        "@ros2packages//sensor-msgs:files",
+        "@ros2packages//sensor-msgs-py:files",
+        "@ros2packages//tf2-eigen:files",
+        "@triton_core_260//:files",
+    ],
+    load_paths = load_paths(
+        add_cuda_paths = True,
+        add_nvvpi_paths = True,
+        add_triton_paths = True,
+    ),
+    visibility = ["//visibility:public"],
+)
+
+ament_index_share_files(
+    name = "isaac_ros_deploy_converters_pkg",
+    package_name = "isaac_ros_deploy_converters",
+    srcs = [
+        "package.xml",
+    ] + glob([
+        "test/**",
+    ]),
+    libexecs = {
+        ":input_builder_node_exe": "input_builder_node",
+        ":output_builder_node_exe": "output_builder_node",
+        ":joint_command_to_joint_state_node_exe": "joint_command_to_joint_state_node",
+        ":component_container": "component_container",
+        ":create_triton_model_repo": "create_triton_model_repo",
+        ":cartesian_pose_delta_command_builder_node": "cartesian_pose_delta_command_builder_node",
+        ":cartesian_pose_delta_decoder_node": "cartesian_pose_delta_decoder_node",
+    },
+    libraries = [
+        ":converters_so",
+        ":isaac_ros_deploy_converters_so",
+    ],
+    deps = [
+        "//ros_ws/src/isaac_ros_common/isaac_ros_tensor_msgs:isaac_ros_tensor_msgs_pkg",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:isaac_deploy_core_pkg",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_pkg",
+        "//ros_ws/src/isaac_ros_dnn_inference/isaac_ros_triton:isaac_ros_triton_pkg",
+    ],
+)
+
+# ====================================
+# Utility Libraries
+# ====================================
+
+ros2_cc_library(
+    name = "tensor_list_utils",
+    srcs = ["src/utils/tensor_list_utils.cpp"],
+    hdrs = ["include/isaac_ros_deploy_converters/utils/tensor_list_utils.hpp"],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+    deps = [
+        "//ros_ws/src/isaac_ros_common/isaac_ros_tensor_msgs:isaac_ros_tensor_msgs_cc",
+        "//ros_ws/src/isaac_ros_common/isaac_ros_tensor_msgs:tensor_utils",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:tensor_utils",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:types",
+        "//ros_ws/src/third_party/rosidl_buffer_backends/cuda_buffer_backend/cuda_buffer",
+        "@cuda",
+        "@libtorch",
+        "@ros2packages//rclcpp:cc_lib",
+        "@ros2packages//tensor-msgs:cc_lib",
+        "@rules_cuda//cuda:runtime",
+    ],
+)
+
+ros2_cc_library(
+    name = "converters",
+    srcs = ["src/converters/message_to_tensor_converters.cpp"],
+    hdrs = [
+        "include/isaac_ros_deploy_converters/converters/message_to_tensor_converter.hpp",
+        "include/isaac_ros_deploy_converters/converters/message_to_tensor_converter_nodes.hpp",
+    ],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+    deps = [
+        ":tensor_list_utils",
+        "//ros_ws/src/isaac_ros_common/isaac_common:nvtx_scope",
+        "//ros_ws/src/isaac_ros_common/isaac_ros_tensor_msgs:isaac_ros_tensor_msgs_cc",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:types",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_cc",
+        "@libtorch",
+        "@ros2packages//geometry-msgs:cc_lib",
+        "@ros2packages//nav-msgs:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+        "@ros2packages//sensor-msgs:cc_lib",
+    ],
+)
+
+ros2_cc_library(
+    name = "output_converters",
+    srcs = ["src/converters/tensor_to_message_converters.cpp"],
+    hdrs = ["include/isaac_ros_deploy_converters/converters/tensor_to_message_converter.hpp"],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+    deps = [
+        ":tensor_list_utils",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:types",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_cc",
+        "@libtorch",
+        "@ros2packages//geometry-msgs:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+        "@ros2packages//sensor-msgs:cc_lib",
+        "@ros2packages//std-msgs:cc_lib",
+        "@yaml-cpp",
+    ],
+)
+
+ros2_cc_library(
+    name = "isaac_ros_deploy_converters_lib",
+    srcs = [
+        "src/nodes/cartesian_pose_delta_command_builder_node.cpp",
+        "src/nodes/cartesian_pose_delta_decoder_node.cpp",
+        "src/nodes/input_builder_node.cpp",
+        "src/nodes/joint_command_to_joint_state_node.cpp",
+        "src/nodes/output_builder_node.cpp",
+    ],
+    hdrs = [
+        "include/isaac_ros_deploy_converters/nodes/cartesian_pose_delta_command_builder_node.hpp",
+        "include/isaac_ros_deploy_converters/nodes/cartesian_pose_delta_decoder_node.hpp",
+        "include/isaac_ros_deploy_converters/nodes/input_builder_node.hpp",
+        "include/isaac_ros_deploy_converters/nodes/joint_command_to_joint_state_node.hpp",
+        "include/isaac_ros_deploy_converters/nodes/output_builder_node.hpp",
+    ],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+    deps = [
+        ":converters",
+        ":output_converters",
+        ":tensor_list_utils",
+        "//ros_ws/src/isaac_ros_common/isaac_common:nvtx_scope",
+        "//ros_ws/src/isaac_ros_common/isaac_ros_tensor_msgs:isaac_ros_tensor_msgs_cc",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:config_parser",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:input_builder",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:output_builder",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:safetensors_loader",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_cc",
+        "@libtorch",
+        "@ros2packages//geometry-msgs:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+        "@ros2packages//rclcpp-components:cc_lib",
+        "@ros2packages//sensor-msgs:cc_lib",
+        "@ros2packages//std-msgs:cc_lib",
+        "@yaml-cpp",
+    ],
+)
+
+ros2_cc_shared_library(
+    name = "tensor_list_utils_so",
+    shared_lib_name = "libtensor_list_utils.so",
+    deps = [":tensor_list_utils"],
+)
+
+ros2_cc_shared_library(
+    name = "converters_so",
+    dynamic_deps = ["//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:tensor_utils_so"],
+    exports_filter = ["@@//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_converters:converters__cc_library"],
+    shared_lib_name = "libconverters.so",
+    deps = [":converters"],
+)
+
+ros2_cc_shared_library(
+    name = "output_converters_so",
+    shared_lib_name = "liboutput_converters.so",
+    deps = [":output_converters"],
+)
+
+ros2_cc_shared_library(
+    name = "isaac_ros_deploy_converters_so",
+    rclcpp_components = [
+        "isaac_ros_deploy_converters::CartesianPoseDeltaCommandBuilderNode",
+        "isaac_ros_deploy_converters::CartesianPoseDeltaDecoderNode",
+        "isaac_ros_deploy_converters::InputBuilderNode",
+        "isaac_ros_deploy_converters::OutputBuilderNode",
+        "isaac_ros_deploy_converters::JointCommandToJointStateNode",
+    ],
+    shared_lib_name = "libisaac_ros_deploy_converters_lib.so",
+    deps = [":isaac_ros_deploy_converters_lib"],
+)
+
+# ====================================
+# Executables
+# ====================================
+
+ros2_cc_binary(
+    name = "input_builder_node_exe",
+    srcs = ["src/nodes/input_builder_main.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":isaac_ros_deploy_converters_lib",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+ros2_cc_binary(
+    name = "output_builder_node_exe",
+    srcs = ["src/nodes/output_builder_main.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":isaac_ros_deploy_converters_lib",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+ros2_cc_binary(
+    name = "joint_command_to_joint_state_node_exe",
+    srcs = ["src/nodes/joint_command_to_joint_state_main.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":isaac_ros_deploy_converters_lib",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+ros2_cc_binary(
+    name = "component_container",
+    srcs = ["src/nodes/component_container_main.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":isaac_ros_deploy_converters_lib",
+        "@ros2packages//rclcpp:cc_lib",
+        "@ros2packages//rclcpp-components:cc_lib",
+    ],
+)
+
+ros2_cc_binary(
+    name = "cartesian_pose_delta_command_builder_node",
+    srcs = ["src/nodes/cartesian_pose_delta_command_builder_main.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":isaac_ros_deploy_converters_lib",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+ros2_cc_binary(
+    name = "cartesian_pose_delta_decoder_node",
+    srcs = ["src/nodes/cartesian_pose_delta_decoder_main.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":isaac_ros_deploy_converters_lib",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+# ====================================
+# Python Create Triton Model Repo
+# ====================================
+
+# Importable helpers for downstream Python nodes that build TensorList messages.
+ros2_py_library(
+    name = "tensor_utils_py",
+    srcs = [
+        "isaac_ros_deploy_converters/__init__.py",
+        "isaac_ros_deploy_converters/tensor_utils.py",
+    ],
+    imports = ["."],
+    deps = [
+        "//ros_ws/src/isaac_ros_common/isaac_ros_tensor_msgs:isaac_ros_tensor_msgs_py",
+        requirement("numpy"),
+        "@ros2packages//tensor-msgs:py_lib",
+    ],
+)
+
+ros2_py_binary(
+    name = "create_triton_model_repo",
+    srcs = [
+        "isaac_ros_deploy_converters/__init__.py",
+        "isaac_ros_deploy_converters/create_triton_model_repo.py",
+    ],
+    imports = [
+        ".",
+        "isaac_ros_deploy_converters",
+    ],
+    main = "isaac_ros_deploy_converters/create_triton_model_repo.py",
+    deps = [
+        requirement("pyyaml"),
+        requirement("onnx"),
+    ],
+)
+
+genrule(
+    name = "cmake_export_files",
+    outs = [
+        "cmake/ament_cmake_export_targets-extras.cmake",
+        "cmake/isaac_ros_deploy_converters_targetsExport-release.cmake",
+        "cmake/isaac_ros_deploy_converters_targetsExport.cmake",
+    ],
+    cmd = """
+mkdir -p $(RULEDIR)/cmake
+printf 'include("$${CMAKE_CURRENT_LIST_DIR}/isaac_ros_deploy_converters_targetsExport.cmake")\\n' > $(RULEDIR)/cmake/ament_cmake_export_targets-extras.cmake
+: > $(RULEDIR)/cmake/isaac_ros_deploy_converters_targetsExport-release.cmake
+: > $(RULEDIR)/cmake/isaac_ros_deploy_converters_targetsExport.cmake
+""",
+)
+
+# ====================================
+# Tests
+# ====================================
+
+ros2_cc_test(
+    name = "test_message_to_tensor_converters",
+    srcs = ["test/test_message_to_tensor_converters.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":converters",
+        "@googletest//:gtest_main",
+        "@libtorch",
+        "@ros2packages//geometry-msgs:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_tensor_to_message_converters",
+    srcs = ["test/test_tensor_to_message_converters.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":output_converters",
+        "@googletest//:gtest_main",
+        "@libtorch",
+        "@ros2packages//geometry-msgs:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_output_builder_message_type",
+    srcs = ["test/test_output_builder_message_type.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    exec_properties = REMOTE_EXECUTION_GPU_PROPERTIES,
+    deps = [
+        ":isaac_ros_deploy_converters_lib",
+        ":tensor_list_utils",
+        "//ros_ws/src/isaac_ros_common/isaac_ros_tensor_msgs:isaac_ros_tensor_msgs_cc",
+        "@googletest//:gtest_main",
+        "@libtorch",
+        "@ros2packages//geometry-msgs:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_joint_command_trajectory_converter",
+    srcs = ["test/test_joint_command_trajectory_converter.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":output_converters",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_cc",
+        "@googletest//:gtest_main",
+        "@libtorch",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_input_builder_node",
+    srcs = ["test/test_input_builder_node.cpp"],
+    copts = ["-std=c++20"],
+    data = [
+        ":ros_ws",
+        "//ros_ws/src/isaac_ros_common/isaac_ros_tensor_msgs:isaac_ros_tensor_msgs_pkg",
+    ],
+    exec_properties = REMOTE_EXECUTION_GPU_PROPERTIES,
+    deps = [
+        ":isaac_ros_deploy_converters_lib",
+        "//ros_ws/src/isaac_ros_common/isaac_ros_tensor_msgs:isaac_ros_tensor_msgs_cc",
+        "@googletest//:gtest_main",
+        "@libtorch",
+        "@ros2packages//geometry-msgs:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_output_builder_node",
+    srcs = ["test/test_output_builder_node.cpp"],
+    copts = ["-std=c++20"],
+    data = [
+        ":ros_ws",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_pkg",
+    ],
+    exec_properties = REMOTE_EXECUTION_GPU_PROPERTIES,
+    deps = [
+        ":isaac_ros_deploy_converters_lib",
+        ":tensor_list_utils",
+        "//ros_ws/src/isaac_ros_common/isaac_ros_tensor_msgs:isaac_ros_tensor_msgs_cc",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_cc",
+        "@googletest//:gtest_main",
+        "@libtorch",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_tensor_list_utils",
+    srcs = ["test/test_tensor_list_utils.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    exec_properties = REMOTE_EXECUTION_GPU_PROPERTIES,
+    deps = [
+        ":tensor_list_utils",
+        "//ros_ws/src/isaac_ros_common/isaac_ros_tensor_msgs:isaac_ros_tensor_msgs_cc",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:types",
+        "@cuda",
+        "@googletest//:gtest_main",
+        "@libtorch",
+        "@ros2packages//rclcpp:cc_lib",
+        "@ros2packages//tensor-msgs:cc_lib",
+        "@rules_cuda//cuda:runtime",
+    ],
+)
+
+ros2_py_test(
+    name = "test_tensor_utils",
+    srcs = ["test/test_tensor_utils.py"],
+    data = [":ros_ws"],
+    main = "test/test_tensor_utils.py",
+    deps = [
+        ":tensor_utils_py",
+        requirement("numpy"),
+        requirement("pytest"),
+    ],
+)
+
+ros2_py_test(
+    name = "test_create_triton_model_repo",
+    srcs = [
+        "isaac_ros_deploy_converters/__init__.py",
+        "isaac_ros_deploy_converters/create_triton_model_repo.py",
+        "test/test_create_triton_model_repo.py",
+    ],
+    data = [":ros_ws"],
+    imports = [
+        ".",
+        "isaac_ros_deploy_converters",
+        "test",
+    ],
+    main = "test/test_create_triton_model_repo.py",
+    deps = [
+        requirement("onnx"),
+        requirement("pytest"),
+        requirement("pyyaml"),
+    ],
+)
+
+ros.pkg_deb(
+    name = "ros_isaac_ros_deploy_converters_deb",
+    hdrs = glob(["include/isaac_ros_deploy_converters/**/*.hpp"]),
+    components = [
+        "isaac_ros_deploy_converters::CartesianPoseDeltaCommandBuilderNode;libisaac_ros_deploy_converters_lib.so",
+        "isaac_ros_deploy_converters::CartesianPoseDeltaDecoderNode;libisaac_ros_deploy_converters_lib.so",
+        "isaac_ros_deploy_converters::InputBuilderNode;libisaac_ros_deploy_converters_lib.so",
+        "isaac_ros_deploy_converters::OutputBuilderNode;libisaac_ros_deploy_converters_lib.so",
+        "isaac_ros_deploy_converters::JointCommandToJointStateNode;libisaac_ros_deploy_converters_lib.so",
+    ],
+    libs = [
+        ":converters_so",
+        ":isaac_ros_deploy_converters_so",
+        ":output_converters_so",
+        ":tensor_list_utils_so",
+    ],
+    py_srcs = glob(["isaac_ros_deploy_converters/**/*.py"]),
+    runtime_rpaths = torch_debian_runtime_rpaths(),
+    script_renames = {
+        "_cartesian_pose_delta_command_builder_node_noshim": "cartesian_pose_delta_command_builder_node",
+        "_cartesian_pose_delta_decoder_node_noshim": "cartesian_pose_delta_decoder_node",
+        "_component_container_noshim": "component_container",
+        "_input_builder_node_exe_noshim": "input_builder_node",
+        "_joint_command_to_joint_state_node_exe_noshim": "joint_command_to_joint_state_node",
+        "_output_builder_node_exe_noshim": "output_builder_node_exe",
+        "initial_noise_publisher_node.py": "initial_noise_publisher_node",
+    },
+    scripts = [
+        ":_cartesian_pose_delta_command_builder_node_noshim",
+        ":_cartesian_pose_delta_decoder_node_noshim",
+        ":_component_container_noshim",
+        ":_input_builder_node_exe_noshim",
+        ":_joint_command_to_joint_state_node_exe_noshim",
+        ":_output_builder_node_exe_noshim",
+        "isaac_ros_deploy_converters/initial_noise_publisher_node.py",
+    ],
+)

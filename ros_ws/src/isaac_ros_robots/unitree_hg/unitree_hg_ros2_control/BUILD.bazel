@@ -1,0 +1,271 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+load(
+    "@isaac_ros2_rules//ros:defs.bzl",
+    "ament_index_share_files",
+    "ros2_cc_library",
+    "ros2_cc_shared_library",
+    "ros2_cc_test",
+    "ros_ws",
+)
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+load(
+    "//workspace/shared/build:hardware_interface_fmt.bzl",
+    "HARDWARE_INTERFACE_FMT_COPTS",
+    "HARDWARE_INTERFACE_FMT_DEFINES",
+    "HARDWARE_INTERFACE_FMT_DEPS",
+)
+load("//workspace/shared/build:utils.bzl", "BASE_ROS_PACKAGE_FILES", "ament_index_paths", "load_paths")
+load("//workspace/shared/pkg:ros_pkg.bzl", "ros")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "cmake/patches/cyclonedds-0.10.2-typeobject-null-safety.patch",
+])
+
+ros_ws(
+    name = "ros_ws",
+    ament_index_paths = ament_index_paths(),
+    files = BASE_ROS_PACKAGE_FILES + [
+        "@hpcx",
+        "@ros2packages//hardware-interface:files",
+        "@ros2packages//pluginlib:files",
+        "@ros2packages//realtime-tools:files",
+        "@unitree_sdk2//:files",
+    ],
+    load_paths = load_paths() + [
+        "thirdparty/lib/aarch64",
+        "thirdparty/lib/x86_64",
+    ],
+)
+
+cmake(
+    name = "unitree_ddsc_patched_build",
+    cache_entries = {
+        "BUILD_DDSPERF": "OFF",
+        "BUILD_EXAMPLES": "OFF",
+        "BUILD_IDLC": "OFF",
+        "BUILD_SHARED_LIBS": "ON",
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Release",
+        "ENABLE_LTO": "OFF",
+        "ENABLE_SECURITY": "OFF",
+    },
+    install = False,
+    lib_source = "@unitree_cyclonedds//:all_srcs",
+    out_shared_libs = ["libddsc.so"],
+    postfix_script = """
+mkdir -p "$${INSTALLDIR}/lib"
+cp -L lib/libddsc.so "$${INSTALLDIR}/lib/libddsc.so"
+""",
+    targets = ["ddsc"],
+)
+
+genrule(
+    name = "unitree_ddsc_runtime",
+    srcs = [":unitree_ddsc_patched_build"],
+    outs = ["libunitree_sdk2_ddsc.so.0"],
+    cmd = """
+src=
+for candidate in $(locations :unitree_ddsc_patched_build); do
+  case "$$candidate" in
+    */libddsc.so) src="$$candidate" ;;
+  esac
+done
+if [ -z "$$src" ]; then
+  echo "Could not find patched libddsc.so" >&2
+  exit 1
+fi
+cp "$$src" $@
+chmod +w $@
+$(location @patchelf//:patchelf) \
+  --set-soname libunitree_sdk2_ddsc.so.0 \
+  --set-rpath '$$ORIGIN' \
+  $@
+""",
+    tools = ["@patchelf"],
+)
+
+genrule(
+    name = "unitree_ddscxx_runtime",
+    srcs = ["@unitree_sdk2//:ddscxx_runtime"],
+    outs = ["libunitree_sdk2_ddscxx.so.0"],
+    cmd = """
+cp $< $@
+chmod +w $@
+$(location @patchelf//:patchelf) \
+  --set-soname libunitree_sdk2_ddscxx.so.0 \
+  --replace-needed libddsc.so.0 libunitree_sdk2_ddsc.so.0 \
+  --set-rpath '$$ORIGIN' \
+  $@
+""",
+    tools = ["@patchelf"],
+)
+
+ament_index_share_files(
+    name = "unitree_hg_ros2_control_pkg",
+    package_name = "unitree_hg_ros2_control",
+    srcs = [
+        "package.xml",
+        "unitree_hg_ros2_control_hardware.xml",
+    ],
+    libraries = [
+        ":unitree_ddsc_runtime",
+        ":unitree_ddscxx_runtime",
+        ":unitree_hg_ros2_control_so",
+    ],
+    pluginlib_plugins = {
+        "hardware_interface": "unitree_hg_ros2_control_hardware.xml",
+    },
+)
+
+ros2_cc_library(
+    name = "unitree_hg_ros2_control",
+    srcs = glob(["src/*.cpp"]),
+    hdrs = glob(["include/unitree_hg_ros2_control/*.hpp"]),
+    copts = ["-std=c++17"] + HARDWARE_INTERFACE_FMT_COPTS,
+    defines = HARDWARE_INTERFACE_FMT_DEFINES,
+    includes = ["include"],
+    deps = HARDWARE_INTERFACE_FMT_DEPS + [
+        "//ros_ws/src/isaac_ros_common/isaac_common:nvtx_scope",
+        "@ros2packages//diagnostic-msgs:cc_lib",
+        "@ros2packages//hardware-interface:cc_lib",
+        "@ros2packages//pluginlib:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+        "@ros2packages//rclcpp-lifecycle:cc_lib",
+        "@ros2packages//realtime-tools:cc_lib",
+        "@unitree_sdk2",
+    ],
+)
+
+ros2_cc_shared_library(
+    name = "unitree_hg_ros2_control_unpatched_so",
+    shared_lib_name = "libunitree_hg_ros2_control_unpatched.so",
+    deps = [":unitree_hg_ros2_control"],
+)
+
+genrule(
+    name = "unitree_hg_ros2_control_so",
+    srcs = [":unitree_hg_ros2_control_unpatched_so"],
+    outs = ["libunitree_hg_ros2_control.so"],
+    cmd = """
+src=
+for candidate in $(locations :unitree_hg_ros2_control_unpatched_so); do
+  case "$$candidate" in
+    */_rpatched/*) ;;
+    */libunitree_hg_ros2_control_unpatched.so) src="$$candidate" ;;
+  esac
+done
+if [ -z "$$src" ]; then
+  echo "Could not find raw libunitree_hg_ros2_control_unpatched.so" >&2
+  exit 1
+fi
+cp "$$src" $@
+chmod +w $@
+$(location @patchelf//:patchelf) \
+  --set-soname libunitree_hg_ros2_control.so \
+  --replace-needed libddsc.so.0 libunitree_sdk2_ddsc.so.0 \
+  --replace-needed libddscxx.so.0 libunitree_sdk2_ddscxx.so.0 \
+  $@
+""",
+    tools = ["@patchelf"],
+)
+
+ros.pkg_deb(
+    name = "ros_unitree_hg_ros2_control_deb",
+    hdrs = glob(["include/**/*.hpp"]),
+    ament_resources = {
+        "hardware_interface__pluginlib__plugin": "relative:share/unitree_hg_ros2_control/unitree_hg_ros2_control_hardware.xml",
+    },
+    libs = [
+        ":unitree_ddsc_runtime",
+        ":unitree_ddscxx_runtime",
+        ":unitree_hg_ros2_control_so",
+    ],
+    share_srcs = [
+        "cmake/patches/cyclonedds-0.10.2-typeobject-null-safety.patch",
+        "unitree_hg_ros2_control_hardware.xml",
+    ],
+)
+
+_TEST_MAIN = ["test/test_main.cpp"]
+
+ros2_cc_test(
+    name = "test_crc",
+    srcs = ["test/test_crc.cpp"] + _TEST_MAIN,
+    copts = ["-std=c++17"],
+    deps = [
+        ":unitree_hg_ros2_control",
+        "@googletest//:gtest",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_fresh_state_tracker",
+    srcs = ["test/test_fresh_state_tracker.cpp"] + _TEST_MAIN,
+    copts = ["-std=c++17"],
+    deps = [
+        ":unitree_hg_ros2_control",
+        "@googletest//:gtest",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_channel_factory_guard",
+    srcs = ["test/test_channel_factory_guard.cpp"] + _TEST_MAIN,
+    copts = ["-std=c++17"],
+    deps = [
+        ":unitree_hg_ros2_control",
+        "@googletest//:gtest",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_sdk_index_map",
+    srcs = ["test/test_sdk_index_map.cpp"] + _TEST_MAIN,
+    copts = ["-std=c++17"],
+    deps = [
+        ":unitree_hg_ros2_control",
+        "@googletest//:gtest",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_control_helpers",
+    srcs = ["test/test_control_helpers.cpp"] + _TEST_MAIN,
+    copts = ["-std=c++17"],
+    deps = [
+        ":unitree_hg_ros2_control",
+        "@googletest//:gtest",
+    ],
+)
+
+py_test(
+    name = "test_install_metadata",
+    srcs = ["test/test_install_metadata.py"],
+    data = glob([
+        "include/unitree_hg_ros2_control/*.hpp",
+        "src/*.cpp",
+    ]) + [
+        "BUILD.bazel",
+        "CMakeLists.txt",
+        "cmake/patches/cyclonedds-0.10.2-typeobject-null-safety.patch",
+        "package.xml",
+        "unitree_hg_ros2_control_hardware.xml",
+    ],
+    python_version = "PY3",
+)
+
+py_test(
+    name = "test_runtime_source_contracts",
+    srcs = ["test/test_runtime_source_contracts.py"],
+    data = [
+        "include/unitree_hg_ros2_control/control_helpers.hpp",
+        "include/unitree_hg_ros2_control/unitree_dex3_system_interface.hpp",
+        "include/unitree_hg_ros2_control/unitree_hg_system_interface.hpp",
+        "src/unitree_dex3_system_interface.cpp",
+        "src/unitree_hg_system_interface.cpp",
+    ],
+    python_version = "PY3",
+)

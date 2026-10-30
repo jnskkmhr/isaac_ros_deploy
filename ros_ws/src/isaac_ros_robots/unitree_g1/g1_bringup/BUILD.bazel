@@ -1,0 +1,141 @@
+# SPDX-License-Identifier: Apache-2.0
+
+load("@isaac_ros2_rules//ros:defs.bzl", "ament_index_share_files", "ros2_launch", "ros2_py_node", "ros2_shell", "ros_ws")
+load("@isaac_ros_common_pip//:requirements.bzl", common_requirement = "requirement")
+load("@isaac_ros_deploy_pip//:requirements.bzl", "requirement")
+load("@rules_python//python:defs.bzl", "py_test")
+load("//workspace/shared/build:utils.bzl", "ament_index_paths", "load_paths", "python_paths", "shell_paths")
+load("//workspace/shared/pkg:ros_pkg.bzl", "ros")
+
+package(default_visibility = ["//visibility:public"])
+
+_NATIVE_BRINGUP = "//ros_ws/src/isaac_ros_robots/unitree_g1/unitree_g1_bringup"
+
+_SHARE_SRCS = [
+    "package.xml",
+    "LICENSE",
+] + glob([
+    "config/**",
+    "launch/**",
+    "policies/**",
+])
+
+# Reuse the native G1 hardware, inference and MuJoCo runtime closure.
+ament_index_share_files(
+    name = "g1_bringup_pkg",
+    package_name = "g1_bringup",
+    srcs = _SHARE_SRCS,
+    libraries = [":heading_command"],
+    deps = [
+        "//ros_ws/src/isaac_ros_robots/unitree_g1/g1_description:g1_description_pkg",
+        _NATIVE_BRINGUP + ":unitree_g1_bringup_pkg",
+    ],
+)
+
+ros2_py_node(
+    name = "heading_command",
+    srcs = ["scripts/heading_command.py"],
+    data = [_NATIVE_BRINGUP + ":ros_ws"],
+    main = "scripts/heading_command.py",
+    node_name = "heading_command.py",
+    package = "g1_bringup",
+    deps = [
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_py",
+        "@ros2packages//geometry-msgs:py_lib",
+        "@ros2packages//rclpy:py_lib",
+        "@ros2packages//sensor-msgs:py_lib",
+    ],
+)
+
+ros2_launch(
+    name = "g1",
+    srcs = ["launch/g1.launch.py"],
+    data = [
+        ":g1_bringup_pkg",
+        _NATIVE_BRINGUP + ":ros_ws",
+        "//workspace/shared/third_party/libtorch:runtime",
+    ],
+    env_changes = {
+        # Unitree SDK2 embeds Cyclone DDS; use Fast DDS for ROS in this process.
+        "RMW_IMPLEMENTATION": [
+            "replace",
+            "rmw_fastrtps_cpp",
+        ],
+        "TRITON_BACKEND_DIRECTORY": [
+            "path-replace",
+            "ros_ws/src/isaac_ros_robots/unitree_g1/unitree_g1_bringup/ros_ws/tritonserver/backends",
+        ],
+    },
+    launch_file = "launch/g1.launch.py",
+    smoke_test_args = [
+        "hardware_type:=real",
+        "network_interface:=eno1",
+    ],
+    deps = [
+        _NATIVE_BRINGUP + ":controller_manager_spawner_runtime_deps",
+        "@ros2packages//ament-index-python:py_lib",
+        "@ros2packages//controller-manager-msgs:py_lib",
+        "@ros2packages//launch:py_lib",
+        "@ros2packages//launch-ros:py_lib",
+        "@ros2packages//rclpy:py_lib",
+        "@ros2packages//xacro:py_lib",
+        requirement("pyyaml"),
+    ],
+)
+
+ros_ws(
+    name = "cli_ros_ws",
+    ament_index_paths = ament_index_paths(),
+    files = [
+        "@ros2packages//diagnostic-msgs:files",
+        "@ros2packages//foxglove-bridge:files",
+        "@ros2packages//geometry-msgs:files",
+        "@ros2packages//rclpy:files",
+        "@ros2packages//ros2bag:files",
+        "@ros2packages//rosbag2:files",
+        "@ros2packages//ros2cli:files",
+        "@ros2packages//ros2param:files",
+        "@ros2packages//ros2pkg:files",
+        "@ros2packages//ros2run:files",
+        "@ros2packages//ros2service:files",
+        "@ros2packages//ros2topic:files",
+        "@ros2packages//rosidl-runtime-py:files",
+        "@ros2packages//std-srvs:files",
+    ],
+    load_paths = load_paths(),
+    python_paths = python_paths(),
+    shell_paths = shell_paths(),
+)
+
+ros2_shell(
+    name = "shell",
+    packages = [
+        ":cli_ros_ws",
+        "//ros_ws/src/isaac_ros_robots/unitree_g1/g1_description:g1_description_pkg",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_pkg",
+        "@teleop_twist_keyboard//:teleop_twist_keyboard_pkg",
+    ],
+    python_deps = [common_requirement("psutil")],
+)
+
+py_test(
+    name = "test_launch_startup",
+    srcs = ["test/test_launch_startup.py"],
+    data = ["launch/g1.launch.py"],
+)
+
+py_test(
+    name = "test_policy_bundles",
+    srcs = ["test/test_policy_bundles.py"],
+    data = glob([
+        "policies/**",
+        "config/**",
+    ]),
+    deps = [requirement("pyyaml")],
+)
+
+ros.pkg_deb(
+    name = "ros_g1_bringup_deb",
+    scripts = ["scripts/heading_command.py"],
+    share_srcs = _SHARE_SRCS + ["scripts/prepare_bundle.py"],
+)

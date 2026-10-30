@@ -1,0 +1,10 @@
+{
+  "wandb_run": "ufmtmwr9",
+  "wandb_project": "g1_29dof_soft_flat_ppo",
+  "checkpoint": "model_19999.pt",
+  "checkpoint_sha256": "a0046816485695b7b638ba5bfc1e04fc0e871757267545163c253c675552e047",
+  "export_task": "IsaacContrib-Velocity-Sand-G1-29dof-MPM-Play",
+  "policy_frequency_hz": 50,
+  "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor weights unchanged.",
+  "export_validation_examples": 5
+}

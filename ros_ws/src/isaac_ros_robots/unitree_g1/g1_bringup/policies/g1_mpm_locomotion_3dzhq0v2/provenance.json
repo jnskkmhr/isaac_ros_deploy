@@ -1,0 +1,22 @@
+{
+  "wandb_run": "3dzhq0v2",
+  "wandb_entity": "jnskkmr",
+  "wandb_project": "g1_29dof_mpm_mixed_terrain",
+  "checkpoint": "model_13500.pt",
+  "checkpoint_sha256": "0f589417a83b9de095b42a8892ab19c15aff153146d2ac802611498360e30a31",
+  "export_task": "IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play",
+  "policy_frequency_hz": 50.0,
+  "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor weights unchanged.",
+  "export_simulation_note": "CUDA graph capture enabled during export; video recording disabled.",
+  "actor_observation_groups": [
+    "policy",
+    "command"
+  ],
+  "agent_configuration": "Saved OnPolicyRunner training configuration; current compositional PPO registration not used.",
+  "export_validation_examples": 5,
+  "ros_adaptation_validation_steps": 25,
+  "ros_adaptation_max_absolute_error": 0.0,
+  "export_date": "2026-10-26",
+  "checkpoint_selection": "Latest available at download time; W&B run was still running.",
+  "observation_note": "Saved projected-gravity roll/pitch bias ranges were both zero; export uses equivalent unbiased projected_gravity."
+}

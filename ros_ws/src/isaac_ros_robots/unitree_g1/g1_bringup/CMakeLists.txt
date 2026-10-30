@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 3.16)
+project(g1_bringup)
+find_package(ament_cmake REQUIRED)
+install(DIRECTORY config launch policies DESTINATION share/${PROJECT_NAME})
+install(PROGRAMS scripts/heading_command.py DESTINATION lib/${PROJECT_NAME})
+install(FILES scripts/prepare_bundle.py DESTINATION share/${PROJECT_NAME}/tools)
+install(FILES LICENSE DESTINATION share/${PROJECT_NAME})
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(test_launch_startup test/test_launch_startup.py)
+  ament_add_pytest_test(test_policy_bundles test/test_policy_bundles.py)
+endif()
+
+ament_package()

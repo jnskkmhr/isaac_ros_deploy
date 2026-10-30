@@ -1,0 +1,9 @@
+velocity:
+  command_prefix: safety_controller
+  command_suffix: _raw
+  source_to_topic:
+    command/body/velocity: /policy_cmd_vel
+    command/body/target_rotation: /policy_heading
+  controllers:
+  - safety_controller
+  - inference_controller

@@ -1,0 +1,556 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load(
+    "@isaac_ros2_rules//ros:defs.bzl",
+    "ament_index_share_files",
+    "ros2_cc_library",
+    "ros2_cc_shared_library",
+    "ros2_cc_test",
+    "ros_ws",
+)
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
+load("@rules_python//python:defs.bzl", "py_library")
+load(
+    "//workspace/shared/build:hardware_interface_fmt.bzl",
+    "HARDWARE_INTERFACE_FMT_COPTS",
+    "HARDWARE_INTERFACE_FMT_DEFINES",
+    "HARDWARE_INTERFACE_FMT_DEPS",
+)
+load("//workspace/shared/build:utils.bzl", "BASE_ROS_PACKAGE_FILES", "ament_index_paths", "load_paths")
+load("//workspace/shared/pip/pytorch:load_paths.bzl", "torch_debian_runtime_rpaths")
+load("//workspace/shared/pkg:ros_pkg.bzl", "ros")
+
+package(
+    default_visibility = ["//visibility:public"],
+    features = ["c++20"],
+)
+
+ros_ws(
+    name = "ros_ws",
+    ament_index_paths = ament_index_paths(add_nvvpi_paths = True),
+    files = BASE_ROS_PACKAGE_FILES + [
+        "//workspace/shared/third_party/cuda",
+        "@hpcx",
+        "@libnvvpi4//:files",
+        "@pinocchio",
+        "@ros2packages//hardware-interface:files",
+        "@ros2packages//joint-limits:files",
+        "@ros2packages//pluginlib:files",
+    ] + [
+        "@ros2resolute//libassimp5:so_files",
+        "@ros2resolute//libboost-filesystem1.83.0:so_files",
+        "@ros2resolute//libboost-serialization1.83.0:so_files",
+        "@ros2resolute//liboctomap1.9t64:so_files",
+        "@ros2resolute//libspdlog1.12:so_files",
+        "@ros2resolute//libtinyxml2-10:so_files",
+    ],
+    load_paths = load_paths(
+        add_cuda_paths = True,
+        add_nvvpi_paths = True,
+    ),
+)
+
+ament_index_share_files(
+    name = "isaac_ros_deploy_ros2_control_pkg",
+    package_name = "isaac_ros_deploy_ros2_control",
+    srcs = [
+        "isaac_ros_deploy_ros2_control_controllers.xml",
+        "isaac_ros_deploy_ros2_control_hardware.xml",
+        "package.xml",
+    ] + glob(["test/**"]),
+    libraries = [
+        ":velocity_threshold_so",
+        ":interpolate_so",
+        ":safety_controller_so",
+        ":tensor_interface_utils_so",
+        ":isaac_ros_deploy_ros2_control_controllers_so",
+        ":isaac_ros_deploy_ros2_control_hardware_so",
+    ],
+    pluginlib_plugins = {
+        "controller_interface": "isaac_ros_deploy_ros2_control_controllers.xml",
+        "hardware_interface": "isaac_ros_deploy_ros2_control_hardware.xml",
+    },
+    deps = [
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:isaac_deploy_core_pkg",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_converters:isaac_ros_deploy_converters_pkg",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_pkg",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_inverse_dynamics:isaac_ros_inverse_dynamics_pkg",
+    ],
+)
+
+py_library(
+    name = "mujoco_test_helpers",
+    srcs = ["test/test_utils/mujoco_test_helpers.py"],
+    imports = ["test/test_utils"],
+    deps = [
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_py",
+        "@mujoco_ros2_control//:mujoco_ros2_control_msgs_py_lib",
+        "@ros2packages//controller-manager-msgs:py_lib",
+        "@ros2packages//geometry-msgs:py_lib",
+        "@ros2packages//rclpy:py_lib",
+        "@ros2packages//std-msgs:py_lib",
+        "@ros2packages//std-srvs:py_lib",
+        "@ros2packages//tf2-ros-py:py_lib",
+    ],
+)
+
+ros2_cc_library(
+    name = "safety_strategy",
+    hdrs = ["include/isaac_ros_deploy_ros2_control/safety_controller/safety_strategy.hpp"],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+    deps = [
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:types",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_library(
+    name = "out_of_domain_detector",
+    hdrs = ["include/isaac_ros_deploy_ros2_control/safety_controller/out_of_domain_detector.hpp"],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+    deps = [
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:types",
+    ],
+)
+
+ros2_cc_library(
+    name = "velocity_threshold",
+    srcs = ["src/safety_controller/detectors/velocity_threshold.cpp"],
+    hdrs = ["include/isaac_ros_deploy_ros2_control/safety_controller/detectors/velocity_threshold.hpp"],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+    deps = [
+        ":out_of_domain_detector",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:types",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_shared_library(
+    name = "velocity_threshold_so",
+    shared_lib_name = "libvelocity_threshold.so",
+    deps = [":velocity_threshold"],
+)
+
+ros2_cc_library(
+    name = "chunk_sampler",
+    hdrs = ["include/isaac_ros_deploy_ros2_control/utils/chunk_sampler.hpp"],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+    deps = ["@ros2packages//rclcpp:cc_lib"],
+)
+
+ros2_cc_library(
+    name = "interpolate",
+    srcs = ["src/safety_controller/strategies/interpolate.cpp"],
+    hdrs = ["include/isaac_ros_deploy_ros2_control/safety_controller/strategies/interpolate.hpp"],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+    deps = [
+        ":safety_strategy",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_shared_library(
+    name = "interpolate_so",
+    shared_lib_name = "libinterpolate.so",
+    deps = [":interpolate"],
+)
+
+ros2_cc_library(
+    name = "safety_controller_lib",
+    srcs = ["src/safety_controller/safety_controller.cpp"],
+    hdrs = ["include/isaac_ros_deploy_ros2_control/safety_controller/safety_controller.hpp"],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+    deps = [
+        ":interpolate",
+        ":out_of_domain_detector",
+        ":safety_strategy",
+        ":velocity_threshold",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:types",
+        "@yaml-cpp",
+    ],
+)
+
+ros2_cc_shared_library(
+    name = "safety_controller_so",
+    dynamic_deps = ["//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:yaml_cpp_so"],
+    exports_filter = ["@@//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_ros2_control:safety_controller_lib__cc_library"],
+    shared_lib_name = "libsafety_controller.so",
+    deps = [":safety_controller_lib"],
+)
+
+ros2_cc_library(
+    name = "tensor_interface_utils",
+    srcs = ["src/utils/tensor_interface_utils.cpp"],
+    hdrs = ["include/isaac_ros_deploy_ros2_control/utils/tensor_interface_utils.hpp"],
+    copts = ["-std=c++20"] + HARDWARE_INTERFACE_FMT_COPTS,
+    defines = HARDWARE_INTERFACE_FMT_DEFINES,
+    includes = ["include"],
+    deps = HARDWARE_INTERFACE_FMT_DEPS + [
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:types",
+        "@libtorch",
+        "@ros2packages//hardware-interface:cc_lib",
+    ],
+)
+
+ros2_cc_shared_library(
+    name = "tensor_interface_utils_so",
+    exports_filter = [
+        "@@//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_ros2_control:tensor_interface_utils__cc_library",
+        "@@fmt+//:fmt",
+    ],
+    shared_lib_name = "libtensor_interface_utils.so",
+    deps = [":tensor_interface_utils"],
+)
+
+cc_library(
+    name = "converter_registry",
+    hdrs = ["include/isaac_ros_deploy_ros2_control/converters/converter_registry.hpp"],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+)
+
+ros2_cc_library(
+    name = "leapp_backend_mapping",
+    hdrs = ["include/isaac_ros_deploy_ros2_control/controllers/leapp_backend_mapping.hpp"],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+    deps = [
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:types",
+    ],
+)
+
+ros2_cc_library(
+    name = "gain_utils",
+    srcs = ["src/utils/gain_utils.cpp"],
+    hdrs = ["include/isaac_ros_deploy_ros2_control/utils/gain_utils.hpp"],
+    copts = ["-std=c++20"],
+    includes = ["include"],
+    deps = ["@ros2packages//rclcpp:cc_lib"],
+)
+
+ros2_cc_library(
+    name = "isaac_ros_deploy_ros2_control_controllers",
+    srcs = [
+        "src/adapters/command_interface_adapter.cpp",
+        "src/adapters/state_interface_adapter.cpp",
+        "src/controllers/disable_controller.cpp",
+        "src/controllers/forward_joint_command_controller.cpp",
+        "src/controllers/freeze_controller.cpp",
+        "src/controllers/inference_controller.cpp",
+        "src/controllers/joint_command_broadcaster.cpp",
+        "src/controllers/joint_parameter_controller.cpp",
+        "src/controllers/safety_controller.cpp",
+        "src/controllers/task_space_safety_controller.cpp",
+        "src/converters/command_interface_converters.cpp",
+        "src/converters/state_interface_converters.cpp",
+    ],
+    hdrs = [
+        "include/isaac_ros_deploy_ros2_control/adapters/command_interface_adapter.hpp",
+        "include/isaac_ros_deploy_ros2_control/adapters/state_interface_adapter.hpp",
+        "include/isaac_ros_deploy_ros2_control/controllers/disable_controller.hpp",
+        "include/isaac_ros_deploy_ros2_control/controllers/forward_joint_command_controller.hpp",
+        "include/isaac_ros_deploy_ros2_control/controllers/freeze_controller.hpp",
+        "include/isaac_ros_deploy_ros2_control/controllers/inference_controller.hpp",
+        "include/isaac_ros_deploy_ros2_control/controllers/joint_command_broadcaster.hpp",
+        "include/isaac_ros_deploy_ros2_control/controllers/joint_parameter_controller.hpp",
+        "include/isaac_ros_deploy_ros2_control/controllers/leapp_backend_mapping.hpp",
+        "include/isaac_ros_deploy_ros2_control/controllers/safety_controller.hpp",
+        "include/isaac_ros_deploy_ros2_control/controllers/task_space_safety_controller.hpp",
+        "include/isaac_ros_deploy_ros2_control/converters/command_interface_converter.hpp",
+        "include/isaac_ros_deploy_ros2_control/converters/converter_registry.hpp",
+        "include/isaac_ros_deploy_ros2_control/converters/state_interface_converter.hpp",
+        "include/isaac_ros_deploy_ros2_control/utils/realtime_service_client.hpp",
+    ],
+    copts = ["-std=c++20"] + HARDWARE_INTERFACE_FMT_COPTS,
+    defines = HARDWARE_INTERFACE_FMT_DEFINES,
+    includes = ["include"],
+    deps = HARDWARE_INTERFACE_FMT_DEPS + [
+        ":chunk_sampler",
+        ":gain_utils",
+        ":leapp_backend_mapping",
+        ":safety_controller_lib",
+        ":tensor_interface_utils",
+        "//ros_ws/src/isaac_ros_common/isaac_common:nvtx_scope",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:config_parser",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:inference_controller",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:input_term",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:output_term",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:safetensors_loader",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:types",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_converters:converters",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_cc",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_inverse_dynamics:inverse_dynamics_solver",
+        "@libtorch",
+        "@ros2packages//controller-interface:cc_lib",
+        "@ros2packages//controller-manager-msgs:cc_lib",
+        "@ros2packages//hardware-interface:cc_lib",
+        "@ros2packages//pluginlib:cc_lib",
+        "@ros2packages//rcl-interfaces:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+        "@ros2packages//rclcpp-lifecycle:cc_lib",
+        "@ros2packages//realtime-tools:cc_lib",
+        "@ros2packages//sensor-msgs:cc_lib",
+        "@ros2packages//std-msgs:cc_lib",
+        "@ros2packages//urdf:cc_lib",
+        "@yaml-cpp",
+    ],
+)
+
+ros2_cc_shared_library(
+    name = "isaac_ros_deploy_ros2_control_controllers_so",
+    dynamic_deps = [
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:yaml_cpp_so",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:config_parser_so",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:inference_controller_so",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:input_term_so",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:output_term_so",
+        ":safety_controller_so",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:safetensors_loader_so",
+        ":tensor_interface_utils_so",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_converters:converters_so",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_inverse_dynamics:inverse_dynamics_solver_so",
+    ],
+    exports_filter = ["@@//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_ros2_control:isaac_ros_deploy_ros2_control_controllers__cc_library"],
+    shared_lib_name = "libisaac_ros_deploy_ros2_control_controllers.so",
+    deps = [":isaac_ros_deploy_ros2_control_controllers"],
+)
+
+ros2_cc_library(
+    name = "isaac_ros_deploy_ros2_control_hardware",
+    srcs = [
+        "src/hardware/topic_based_system_interface.cpp",
+        "src/hardware/topic_sensor_interface.cpp",
+    ],
+    hdrs = [
+        "include/isaac_ros_deploy_ros2_control/hardware/topic_based_system_interface.hpp",
+        "include/isaac_ros_deploy_ros2_control/hardware/topic_sensor_interface.hpp",
+    ],
+    copts = [
+        "-std=c++20",
+    ] + HARDWARE_INTERFACE_FMT_COPTS,
+    defines = HARDWARE_INTERFACE_FMT_DEFINES,
+    includes = ["include"],
+    deps = HARDWARE_INTERFACE_FMT_DEPS + [
+        "@ros2packages//hardware-interface:cc_lib",
+        "@ros2packages//pluginlib:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+        "@ros2packages//rclcpp-lifecycle:cc_lib",
+        "@ros2packages//realtime-tools:cc_lib",
+        "@ros2packages//sensor-msgs:cc_lib",
+        "@ros2packages//std-msgs:cc_lib",
+    ],
+)
+
+ros2_cc_shared_library(
+    name = "isaac_ros_deploy_ros2_control_hardware_so",
+    shared_lib_name = "libisaac_ros_deploy_ros2_control_hardware.so",
+    deps = [":isaac_ros_deploy_ros2_control_hardware"],
+)
+
+ros2_cc_test(
+    name = "velocity_threshold_test",
+    srcs = ["test/test_velocity_threshold.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":velocity_threshold",
+        "@googletest//:gtest_main",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_test(
+    name = "interpolate_test",
+    srcs = ["test/test_interpolate.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":interpolate",
+        "@googletest//:gtest_main",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_test(
+    name = "safety_controller_test",
+    srcs = ["test/test_safety_controller.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":safety_controller_lib",
+        "@googletest//:gtest_main",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_converter_registry",
+    srcs = ["test/test_converter_registry.cpp"],
+    copts = ["-std=c++20"],
+    deps = [
+        ":converter_registry",
+        "@googletest//:gtest_main",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_state_interface_converters",
+    srcs = ["test/test_state_interface_converters.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":isaac_ros_deploy_ros2_control_controllers",
+        "@googletest//:gtest_main",
+        "@libtorch",
+        "@ros2packages//hardware-interface:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_command_interface_converters",
+    srcs = ["test/test_command_interface_converters.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":isaac_ros_deploy_ros2_control_controllers",
+        "@googletest//:gtest_main",
+        "@libtorch",
+        "@ros2packages//hardware-interface:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_gain_utils",
+    srcs = ["test/test_gain_utils.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":gain_utils",
+        "@googletest//:gtest_main",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_leapp_backend_mapping",
+    srcs = ["test/test_leapp_backend_mapping.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":leapp_backend_mapping",
+        "@googletest//:gtest_main",
+    ],
+)
+
+ros2_cc_test(
+    name = "joint_command_broadcaster_test",
+    srcs = ["test/test_joint_command_broadcaster.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":isaac_ros_deploy_ros2_control_controllers",
+        "//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_deploy_interfaces:isaac_ros_deploy_interfaces_cc",
+        "@googletest//:gtest_main",
+        "@libtorch",
+        "@ros2packages//controller-interface:cc_lib",
+        "@ros2packages//hardware-interface:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+        "@ros2packages//rclcpp-lifecycle:cc_lib",
+        "@ros2packages//sensor-msgs:cc_lib",
+    ],
+)
+
+ros2_cc_test(
+    name = "joint_parameter_controller_test",
+    srcs = ["test/test_joint_parameter_controller.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":isaac_ros_deploy_ros2_control_controllers",
+        "@googletest//:gtest_main",
+        "@ros2packages//controller-interface:cc_lib",
+        "@ros2packages//hardware-interface:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+        "@ros2packages//rclcpp-lifecycle:cc_lib",
+    ],
+)
+
+ros2_cc_test(
+    name = "ros_safety_controller_test",
+    srcs = ["test/test_ros_safety_controller.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":isaac_ros_deploy_ros2_control_controllers",
+        "@googletest//:gtest_main",
+        "@libtorch",
+        "@ros2packages//controller-interface:cc_lib",
+        "@ros2packages//controller-manager-msgs:cc_lib",
+        "@ros2packages//hardware-interface:cc_lib",
+        "@ros2packages//rclcpp:cc_lib",
+        "@ros2packages//rclcpp-lifecycle:cc_lib",
+    ],
+)
+
+ros2_cc_test(
+    name = "test_chunk_sampler",
+    srcs = ["test/test_chunk_sampler.cpp"],
+    copts = ["-std=c++20"],
+    data = [":ros_ws"],
+    deps = [
+        ":chunk_sampler",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Downstream source-built tests import the helper from the binary dependency.
+pkg_files(
+    name = "mujoco_test_helpers_install",
+    srcs = ["test/test_utils/mujoco_test_helpers.py"],
+    prefix = ros.python_site_packages_prefix(),
+    strip_prefix = strip_prefix.files_only(),
+)
+
+ros.pkg_deb(
+    name = "ros_isaac_ros_deploy_ros2_control_deb",
+    hdrs = glob(["include/isaac_ros_deploy_ros2_control/**/*.hpp"]),
+    ament_resources = {
+        "controller_interface__pluginlib__plugin": "relative:share/isaac_ros_deploy_ros2_control/isaac_ros_deploy_ros2_control_controllers.xml\n",
+        "hardware_interface__pluginlib__plugin": "relative:share/isaac_ros_deploy_ros2_control/isaac_ros_deploy_ros2_control_hardware.xml\n",
+    },
+    extra_srcs = [":mujoco_test_helpers_install"],
+    libs = [
+        ":velocity_threshold_so",
+        ":interpolate_so",
+        ":safety_controller_so",
+        ":tensor_interface_utils_so",
+        ":isaac_ros_deploy_ros2_control_controllers_so",
+        ":isaac_ros_deploy_ros2_control_hardware_so",
+    ],
+    runtime_rpaths = torch_debian_runtime_rpaths(),
+    share_srcs = [
+        "isaac_ros_deploy_ros2_control_controllers.xml",
+        "isaac_ros_deploy_ros2_control_hardware.xml",
+    ],
+)

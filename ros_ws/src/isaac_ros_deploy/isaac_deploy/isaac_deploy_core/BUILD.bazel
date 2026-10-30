@@ -1,0 +1,718 @@
+"""
+Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+NVIDIA CORPORATION and its licensors retain all intellectual property
+and proprietary rights in and to this software, related documentation
+and any modifications thereto. Any use, reproduction, disclosure or
+distribution of this software and related documentation without an express
+license agreement from NVIDIA CORPORATION is strictly prohibited.
+"""
+
+load(
+    "@isaac_ros2_rules//ros:defs.bzl",
+    "ament_index_share_files",
+    "ros2_cc_library",
+    "ros2_cc_shared_library",
+    "ros2_cc_test",
+    "ros_ws",
+)
+load("//workspace/shared/build:utils.bzl", "BASE_ROS_PACKAGE_FILES", "ament_index_paths", "load_paths")
+load("//workspace/shared/pip/pytorch:load_paths.bzl", "torch_debian_runtime_rpaths")
+load("//workspace/shared/pkg:ros_pkg.bzl", "ros")
+
+package(
+    default_visibility = ["//visibility:public"],
+    features = ["c++20"],
+)
+
+ros_ws(
+    name = "ros_ws",
+    ament_index_paths = ament_index_paths(add_nvvpi_paths = True),
+    files = BASE_ROS_PACKAGE_FILES + [
+        "//workspace/shared/third_party/cuda",
+        "@hpcx",
+        "@libnvvpi4//:files",
+        "@nvidia//datacenter-gpu-manager-4-core:files",
+        "@ros2packages//rcpputils:files",
+        "@triton_core_260//:files",
+    ],
+    load_paths = load_paths(
+        add_cuda_paths = True,
+        add_nvvpi_paths = True,
+        add_triton_paths = True,
+    ),
+)
+
+ament_index_share_files(
+    name = "isaac_deploy_core_pkg",
+    package_name = "isaac_deploy_core",
+    srcs = ["package.xml"] + glob([
+        "test_data/**/*",
+        "scripts/**/*",
+        "cmake/**/*",
+    ]),
+    libraries = [
+        ":yaml_cpp_so",
+        ":config_parser_so",
+        ":inference_controller_so",
+        ":inference_runner_so",
+        ":input_builder_so",
+        ":input_term_so",
+        ":mock_runner_so",
+        ":output_builder_so",
+        ":output_term_so",
+        ":safetensors_loader_so",
+        ":tensor_utils_so",
+        ":triton_runner_so",
+    ],
+)
+
+filegroup(
+    name = "test_data",
+    srcs = glob(["test_data/**"]),
+)
+
+# ====================================
+# Core Libraries
+# ====================================
+
+# Preserve the existing dependency target while sourcing tl::expected from rcpputils.
+cc_library(
+    name = "tl_expected",
+    defines = ["ISAAC_DEPLOY_USE_BUNDLED_TL_EXPECTED"],
+    deps = ["@ros2packages//rcpputils:cc_lib"],
+)
+
+ros2_cc_library(
+    name = "expected",
+    hdrs = [
+        "core/error.hpp",
+    ],
+    copts = ["-std=c++20"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [":tl_expected"],
+)
+
+ros2_cc_library(
+    name = "types",
+    hdrs = [
+        "core/error.hpp",
+        "core/types.hpp",
+    ],
+    copts = ["-std=c++20"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":expected",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_library(
+    name = "tensor_utils",
+    srcs = ["core/tensor_utils.cpp"],
+    hdrs = ["core/tensor_utils.hpp"],
+    copts = ["-std=c++20"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":expected",
+        ":types",
+        "@libtorch",
+    ],
+)
+
+# ====================================
+# Inference Controller - Config Parser
+# ====================================
+
+ros2_cc_library(
+    name = "config_parser",
+    srcs = ["inference_controller/config_parser.cpp"],
+    hdrs = ["inference_controller/config_parser.hpp"],
+    copts = ["-std=c++20"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":expected",
+        ":types",
+        "@yaml-cpp",
+    ],
+)
+
+ros2_cc_library(
+    name = "safetensors_loader",
+    srcs = ["inference_controller/safetensors_loader.cpp"],
+    hdrs = ["inference_controller/safetensors_loader.hpp"],
+    copts = ["-std=c++20"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":config_parser",
+        ":expected",
+        ":types",
+        "@libtorch",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# ====================================
+# Inference Controller - Input
+# ====================================
+
+ros2_cc_library(
+    name = "term_metadata",
+    hdrs = ["inference_controller/term_metadata.hpp"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":expected",
+        ":tl_expected",
+        "@yaml-cpp",
+    ],
+)
+
+ros2_cc_library(
+    name = "input_term",
+    srcs = ["inference_controller/input/input_term.cpp"],
+    hdrs = ["inference_controller/input/input_term.hpp"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":expected",
+        ":term_metadata",
+        ":tensor_utils",
+        ":tl_expected",
+        ":types",
+        "@libtorch",
+        "@yaml-cpp",
+    ],
+)
+
+ros2_cc_library(
+    name = "input_builder",
+    srcs = ["inference_controller/input/input_builder.cpp"],
+    hdrs = ["inference_controller/input/input_builder.hpp"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":config_parser",
+        ":expected",
+        ":input_term",
+        ":tl_expected",
+        ":types",
+        "//ros_ws/src/isaac_ros_common/isaac_common:nvtx_scope",
+    ],
+)
+
+# ====================================
+# Inference Controller - Output
+# ====================================
+
+ros2_cc_library(
+    name = "output_term",
+    srcs = ["inference_controller/output/output_term.cpp"],
+    hdrs = ["inference_controller/output/output_term.hpp"],
+    copts = ["-std=c++20"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":expected",
+        ":term_metadata",
+        ":tensor_utils",
+        ":tl_expected",
+        ":types",
+        "@libtorch",
+        "@yaml-cpp",
+    ],
+)
+
+ros2_cc_library(
+    name = "output_builder",
+    srcs = ["inference_controller/output/output_builder.cpp"],
+    hdrs = ["inference_controller/output/output_builder.hpp"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":config_parser",
+        ":expected",
+        ":output_term",
+        ":tl_expected",
+        ":types",
+        "//ros_ws/src/isaac_ros_common/isaac_common:nvtx_scope",
+    ],
+)
+
+# ====================================
+# Inference Controller - Runners
+# ====================================
+
+# Abstract interface grouping types + expected for runner implementations.
+ros2_cc_library(
+    name = "inference_runner_base",
+    hdrs = ["inference_controller/runner/inference_runner.hpp"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":expected",
+        ":types",
+    ],
+)
+
+ros2_cc_library(
+    name = "mock_runner",
+    srcs = ["inference_controller/runner/mock_runner.cpp"],
+    hdrs = ["inference_controller/runner/mock_runner.hpp"],
+    copts = ["-std=c++20"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":expected",
+        ":inference_runner_base",
+        ":tl_expected",
+        ":types",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_library(
+    name = "triton_runner",
+    srcs = [
+        "inference_controller/runner/nvtx_trace_bridge.hpp",
+        "inference_controller/runner/triton_runner.cpp",
+    ],
+    hdrs = [
+        "inference_controller/runner/triton_runner.hpp",
+    ],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    linkopts = [
+        "-ldl",
+        "-lpthread",
+    ],
+    deps = [
+        ":expected",
+        ":inference_runner_base",
+        ":tl_expected",
+        ":types",
+        "//ros_ws/src/isaac_ros_common/isaac_common:nvtx_scope",
+        "@libtorch",
+        "@triton_core_260//:tritonserver_api",
+    ],
+)
+
+ros2_cc_library(
+    name = "inference_runner",
+    srcs = ["inference_controller/runner/inference_runner.cpp"],
+    copts = ["-std=c++20"],
+    # Header included by all runners, so its located in the base target.
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":expected",
+        ":inference_runner_base",
+        ":mock_runner",
+        ":tl_expected",
+        ":triton_runner",
+        ":types",
+    ],
+)
+
+# ====================================
+# Top-Level Inference Controller
+# ====================================
+
+ros2_cc_library(
+    name = "inference_controller",
+    srcs = ["inference_controller/inference_controller.cpp"],
+    hdrs = ["inference_controller/inference_controller.hpp"],
+    include_prefix = "isaac_deploy_core",
+    includes = ["."],
+    deps = [
+        ":expected",
+        ":inference_runner",
+        ":input_builder",
+        ":output_builder",
+        ":tl_expected",
+        ":types",
+        "//ros_ws/src/isaac_ros_common/isaac_common:nvtx_scope",
+    ],
+)
+
+ros2_cc_shared_library(
+    name = "yaml_cpp_so",
+    exports_filter = ["@@yaml-cpp+//:yaml-cpp"],
+    shared_lib_name = "libisaac_deploy_yaml_cpp.so",
+    deps = ["@yaml-cpp"],
+)
+
+ros2_cc_shared_library(
+    name = "config_parser_so",
+    dynamic_deps = [":yaml_cpp_so"],
+    exports_filter = ["@@//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:config_parser__cc_library"],
+    shared_lib_name = "libconfig_parser.so",
+    deps = [":config_parser"],
+)
+
+ros2_cc_shared_library(
+    name = "inference_controller_so",
+    dynamic_deps = [
+        ":config_parser_so",
+        ":input_term_so",
+        ":output_term_so",
+    ],
+    exports_filter = ["@@//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:inference_controller__cc_library"],
+    shared_lib_name = "libinference_controller.so",
+    deps = [":inference_controller"],
+)
+
+ros2_cc_shared_library(
+    name = "inference_runner_so",
+    shared_lib_name = "libinference_runner.so",
+    deps = [":inference_runner"],
+)
+
+ros2_cc_shared_library(
+    name = "input_builder_so",
+    shared_lib_name = "libinput_builder.so",
+    deps = [":input_builder"],
+)
+
+ros2_cc_shared_library(
+    name = "input_term_so",
+    dynamic_deps = [
+        ":tensor_utils_so",
+        ":yaml_cpp_so",
+    ],
+    exports_filter = ["@@//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:input_term__cc_library"],
+    shared_lib_name = "libinput_term.so",
+    deps = [":input_term"],
+)
+
+ros2_cc_shared_library(
+    name = "mock_runner_so",
+    shared_lib_name = "libmock_runner.so",
+    deps = [":mock_runner"],
+)
+
+ros2_cc_shared_library(
+    name = "output_builder_so",
+    shared_lib_name = "liboutput_builder.so",
+    deps = [":output_builder"],
+)
+
+ros2_cc_shared_library(
+    name = "output_term_so",
+    dynamic_deps = [
+        ":tensor_utils_so",
+        ":yaml_cpp_so",
+    ],
+    exports_filter = ["@@//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:output_term__cc_library"],
+    shared_lib_name = "liboutput_term.so",
+    deps = [":output_term"],
+)
+
+ros2_cc_shared_library(
+    name = "safetensors_loader_so",
+    dynamic_deps = [":config_parser_so"],
+    exports_filter = ["@@//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:safetensors_loader__cc_library"],
+    shared_lib_name = "libsafetensors_loader.so",
+    deps = [":safetensors_loader"],
+)
+
+ros2_cc_shared_library(
+    name = "tensor_utils_so",
+    exports_filter = ["@@//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_deploy_core:tensor_utils__cc_library"],
+    shared_lib_name = "libtensor_utils.so",
+    deps = [":tensor_utils"],
+)
+
+ros2_cc_shared_library(
+    name = "triton_runner_so",
+    shared_lib_name = "libtriton_runner.so",
+    deps = [":triton_runner"],
+)
+
+# ====================================
+# Tests
+# ====================================
+
+ros2_cc_test(
+    name = "types_test",
+    srcs = ["core/types_test.cpp"],
+    copts = ["-std=c++20"],
+    data = [
+        ":ros_ws",
+        ":test_data",
+    ],
+    deps = [
+        ":types",
+        "@googletest//:gtest_main",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_test(
+    name = "tensor_utils_test",
+    srcs = ["core/tensor_utils_test.cpp"],
+    copts = ["-std=c++20"],
+    data = [
+        ":ros_ws",
+        ":test_data",
+    ],
+    deps = [
+        ":tensor_utils",
+        "@googletest//:gtest_main",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_test(
+    name = "input_term_test",
+    srcs = ["inference_controller/input/input_term_test.cpp"],
+    copts = ["-std=c++20"],
+    data = [
+        ":ros_ws",
+        ":test_data",
+    ],
+    deps = [
+        ":input_term",
+        "@googletest//:gtest_main",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_test(
+    name = "input_builder_test",
+    srcs = ["inference_controller/input/input_builder_test.cpp"],
+    copts = ["-std=c++20"],
+    data = [
+        ":ros_ws",
+        ":test_data",
+    ],
+    deps = [
+        ":config_parser",
+        ":input_builder",
+        "@googletest//:gtest_main",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_test(
+    name = "output_term_test",
+    srcs = ["inference_controller/output/output_term_test.cpp"],
+    copts = ["-std=c++20"],
+    data = [
+        ":ros_ws",
+        ":test_data",
+    ],
+    deps = [
+        ":output_term",
+        "@googletest//:gtest_main",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_test(
+    name = "output_builder_test",
+    srcs = ["inference_controller/output/output_builder_test.cpp"],
+    copts = ["-std=c++20"],
+    data = [
+        ":ros_ws",
+        ":test_data",
+    ],
+    deps = [
+        ":output_builder",
+        "@googletest//:gtest_main",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_test(
+    name = "triton_runner_test",
+    srcs = ["inference_controller/runner/triton_runner_test.cpp"],
+    copts = ["-std=c++20"],
+    data = [
+        ":ros_ws",
+        ":test_data",
+    ],
+    deps = [
+        ":triton_runner",
+        "@googletest//:gtest_main",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_test(
+    name = "config_parser_test",
+    srcs = ["inference_controller/config_parser_test.cpp"],
+    copts = ["-std=c++20"],
+    data = [
+        ":ros_ws",
+        ":test_data",
+    ],
+    deps = [
+        ":config_parser",
+        "@googletest//:gtest_main",
+    ],
+)
+
+ros2_cc_test(
+    name = "safetensors_loader_test",
+    srcs = ["inference_controller/safetensors_loader_test.cpp"],
+    copts = ["-std=c++20"],
+    data = [
+        ":ros_ws",
+        ":test_data",
+    ],
+    deps = [
+        ":safetensors_loader",
+        "@googletest//:gtest_main",
+        "@libtorch",
+    ],
+)
+
+ros2_cc_test(
+    name = "inference_controller_test",
+    srcs = ["inference_controller/inference_controller_test.cpp"],
+    copts = ["-std=c++20"],
+    data = [
+        ":ros_ws",
+        ":test_data",
+    ],
+    deps = [
+        ":inference_controller",
+        "@googletest//:gtest_main",
+        "@libtorch",
+    ],
+)
+
+genrule(
+    name = "bloom_header_aliases",
+    srcs = [
+        "core/error.hpp",
+        "core/tensor_utils.hpp",
+        "core/types.hpp",
+        "inference_controller/config_parser.hpp",
+        "inference_controller/inference_controller.hpp",
+        "inference_controller/safetensors_loader.hpp",
+        "inference_controller/input/input_builder.hpp",
+        "inference_controller/input/input_term.hpp",
+        "inference_controller/output/output_builder.hpp",
+        "inference_controller/output/output_term.hpp",
+        "inference_controller/runner/inference_runner.hpp",
+        "inference_controller/runner/mock_runner.hpp",
+        "inference_controller/runner/triton_runner.hpp",
+    ],
+    outs = [
+        "include/isaac_deploy_core/core/error.h",
+        "include/isaac_deploy_core/core/error.hpp",
+        "include/isaac_deploy_core/core/tensor_utils.h",
+        "include/isaac_deploy_core/core/tensor_utils.hpp",
+        "include/isaac_deploy_core/core/types.h",
+        "include/isaac_deploy_core/core/types.hpp",
+        "include/isaac_deploy_core/inference_controller/config_parser.h",
+        "include/isaac_deploy_core/inference_controller/config_parser.hpp",
+        "include/isaac_deploy_core/inference_controller/inference_controller.h",
+        "include/isaac_deploy_core/inference_controller/inference_controller.hpp",
+        "include/isaac_deploy_core/inference_controller/safetensors_loader.h",
+        "include/isaac_deploy_core/inference_controller/safetensors_loader.hpp",
+        "include/isaac_deploy_core/inference_controller/input/input_builder.h",
+        "include/isaac_deploy_core/inference_controller/input/input_builder.hpp",
+        "include/isaac_deploy_core/inference_controller/input/input_term.h",
+        "include/isaac_deploy_core/inference_controller/input/input_term.hpp",
+        "include/isaac_deploy_core/inference_controller/output/output_builder.h",
+        "include/isaac_deploy_core/inference_controller/output/output_builder.hpp",
+        "include/isaac_deploy_core/inference_controller/output/output_term.h",
+        "include/isaac_deploy_core/inference_controller/output/output_term.hpp",
+        "include/isaac_deploy_core/inference_controller/runner/inference_runner.h",
+        "include/isaac_deploy_core/inference_controller/runner/inference_runner.hpp",
+        "include/isaac_deploy_core/inference_controller/runner/mock_runner.h",
+        "include/isaac_deploy_core/inference_controller/runner/mock_runner.hpp",
+        "include/isaac_deploy_core/inference_controller/runner/triton_runner.h",
+        "include/isaac_deploy_core/inference_controller/runner/triton_runner.hpp",
+    ],
+    cmd = """
+mkdir -p $(RULEDIR)/include/isaac_deploy_core/core
+mkdir -p $(RULEDIR)/include/isaac_deploy_core/inference_controller/input
+mkdir -p $(RULEDIR)/include/isaac_deploy_core/inference_controller/output
+mkdir -p $(RULEDIR)/include/isaac_deploy_core/inference_controller/runner
+cp $(location core/error.hpp) $(RULEDIR)/include/isaac_deploy_core/core/error.h
+cp $(location core/error.hpp) $(RULEDIR)/include/isaac_deploy_core/core/error.hpp
+cp $(location core/tensor_utils.hpp) $(RULEDIR)/include/isaac_deploy_core/core/tensor_utils.h
+cp $(location core/tensor_utils.hpp) $(RULEDIR)/include/isaac_deploy_core/core/tensor_utils.hpp
+cp $(location core/types.hpp) $(RULEDIR)/include/isaac_deploy_core/core/types.h
+cp $(location core/types.hpp) $(RULEDIR)/include/isaac_deploy_core/core/types.hpp
+cp $(location inference_controller/config_parser.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/config_parser.h
+cp $(location inference_controller/config_parser.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/config_parser.hpp
+cp $(location inference_controller/inference_controller.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/inference_controller.h
+cp $(location inference_controller/inference_controller.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/inference_controller.hpp
+cp $(location inference_controller/safetensors_loader.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/safetensors_loader.h
+cp $(location inference_controller/safetensors_loader.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/safetensors_loader.hpp
+cp $(location inference_controller/input/input_builder.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/input/input_builder.h
+cp $(location inference_controller/input/input_builder.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/input/input_builder.hpp
+cp $(location inference_controller/input/input_term.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/input/input_term.h
+cp $(location inference_controller/input/input_term.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/input/input_term.hpp
+cp $(location inference_controller/output/output_builder.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/output/output_builder.h
+cp $(location inference_controller/output/output_builder.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/output/output_builder.hpp
+cp $(location inference_controller/output/output_term.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/output/output_term.h
+cp $(location inference_controller/output/output_term.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/output/output_term.hpp
+cp $(location inference_controller/runner/inference_runner.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/runner/inference_runner.h
+cp $(location inference_controller/runner/inference_runner.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/runner/inference_runner.hpp
+cp $(location inference_controller/runner/mock_runner.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/runner/mock_runner.h
+cp $(location inference_controller/runner/mock_runner.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/runner/mock_runner.hpp
+cp $(location inference_controller/runner/triton_runner.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/runner/triton_runner.h
+cp $(location inference_controller/runner/triton_runner.hpp) $(RULEDIR)/include/isaac_deploy_core/inference_controller/runner/triton_runner.hpp
+""",
+)
+
+genrule(
+    name = "cmake_config_extra_file",
+    srcs = ["cmake/isaac_deploy_core-extras.cmake.in"],
+    outs = ["cmake/isaac_deploy_core-extras.cmake"],
+    cmd = """
+mkdir -p $(RULEDIR)/cmake
+cp $(location cmake/isaac_deploy_core-extras.cmake.in) $(RULEDIR)/cmake/isaac_deploy_core-extras.cmake
+""",
+)
+
+genrule(
+    name = "cmake_export_target_files",
+    outs = [
+        "cmake/isaac_deploy_core_targetsExport-release.cmake",
+        "cmake/isaac_deploy_core_targetsExport.cmake",
+    ],
+    cmd = """
+mkdir -p $(RULEDIR)/cmake
+touch $(RULEDIR)/cmake/isaac_deploy_core_targetsExport-release.cmake
+touch $(RULEDIR)/cmake/isaac_deploy_core_targetsExport.cmake
+""",
+)
+
+ros.pkg_deb(
+    name = "ros_isaac_deploy_core_deb",
+    hdrs = [
+        ":bloom_header_aliases",
+    ] + glob(["include/isaac_deploy_core/**"]),
+    cmake_srcs = [":cmake_config_extra_file"],
+    libs = [
+        ":config_parser_so",
+        ":yaml_cpp_so",
+        ":inference_controller_so",
+        ":inference_runner_so",
+        ":input_builder_so",
+        ":input_term_so",
+        ":mock_runner_so",
+        ":output_builder_so",
+        ":output_term_so",
+        ":safetensors_loader_so",
+        ":tensor_utils_so",
+        ":triton_runner_so",
+    ],
+    runtime_rpaths = torch_debian_runtime_rpaths(),
+    share_srcs = glob([
+        "cmake/**",
+        "scripts/**",
+        "test_data/**",
+    ]) + [":cmake_export_target_files"],
+)

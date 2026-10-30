@@ -1,0 +1,62 @@
+diff --git a/mujoco_ros2_control/src/mujoco_simulation.cpp b/mujoco_ros2_control/src/mujoco_simulation.cpp
+index aa00a69..2229959 100644
+--- a/mujoco_ros2_control/src/mujoco_simulation.cpp
++++ b/mujoco_ros2_control/src/mujoco_simulation.cpp
+@@ -1115,8 +1115,11 @@ void MujocoSimulation::set_pause_callback(const std::shared_ptr<mujoco_ros2_cont
+     if (pending > 0)
+     {
+       RCLCPP_WARN(get_logger(), "Resuming simulation while %u step(s) were pending; aborting.", pending);
+-      pending_steps_.store(0);
+-      steps_interrupted_.store(true);
++      {
++        std::lock_guard<std::mutex> steps_lock(steps_cv_mutex_);
++        pending_steps_.store(0);
++        steps_interrupted_.store(true);
++      }
+       steps_cv_.notify_all();
+     }
+   }
+@@ -1703,8 +1706,11 @@ void MujocoSimulation::physics_loop()
+           {
+             RCLCPP_WARN(get_logger(), "Simulation resumed while %u step(s) were still pending; aborting.",
+                         pending_steps_.load());
+-            pending_steps_.store(0);
+-            steps_interrupted_.store(true);
++            {
++              std::lock_guard<std::mutex> steps_lock(steps_cv_mutex_);
++              pending_steps_.store(0);
++              steps_interrupted_.store(true);
++            }
+             steps_cv_.notify_all();
+           }
+ 
+@@ -1856,16 +1862,25 @@ void MujocoSimulation::physics_loop()
+             const char* message = Diverged(mj_model_->opt.disableflags, mj_data_);
+             if (message)
+             {
+-              pending_steps_.store(0);
+-              step_diverged_.store(true);
++              {
++                std::lock_guard<std::mutex> steps_lock(steps_cv_mutex_);
++                pending_steps_.store(0);
++                step_diverged_.store(true);
++              }
+               mju::strcpy_arr(sim_->load_error, message);
+               steps_cv_.notify_all();
+             }
+             else
+             {
+               sim_->AddToHistory();
+-              pending_steps_.fetch_sub(1);
+-              step_count_.fetch_add(1);
++              {
++                // Pair the completion predicate with the waiter's mutex. Otherwise
++                // notification can land between its predicate check and wait,
++                // leaving a completed step blocked until the one-second timeout.
++                std::lock_guard<std::mutex> steps_lock(steps_cv_mutex_);
++                pending_steps_.fetch_sub(1);
++                step_count_.fetch_add(1);
++              }
+               steps_cv_.notify_all();
+               update_sim_display();
+             }

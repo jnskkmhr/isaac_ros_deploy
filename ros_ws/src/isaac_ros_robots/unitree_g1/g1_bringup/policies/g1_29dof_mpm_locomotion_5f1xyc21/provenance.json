@@ -1,0 +1,15 @@
+{
+  "wandb_run": "5f1xyc21",
+  "checkpoint": "model_39998.pt",
+  "checkpoint_sha256": "2d858c14766b64d69c7e19aae4edc3b8403d49b344bd6278fc77ec6b7a5938c4",
+  "export_task": "IsaacContrib-Velocity-Sand-G1-29dof-MPM-Play",
+  "bundle_name": "g1_29dof_mpm_locomotion_5f1xyc21",
+  "checkpoint_selection": "Checkpoint selected during the original export.",
+  "policy_frequency_hz": 50,
+  "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor MLP weights unchanged.",
+  "validation": {
+    "recurrent_steps": 200,
+    "max_output_difference": 0.0,
+    "actor_mlp_tensors_matched": 8
+  }
+}

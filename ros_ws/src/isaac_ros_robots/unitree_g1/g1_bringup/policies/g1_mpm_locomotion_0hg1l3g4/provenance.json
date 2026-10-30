@@ -1,0 +1,22 @@
+{
+  "wandb_run": "0hg1l3g4",
+  "wandb_entity": "jnskkmr",
+  "wandb_project": "g1_29dof_mpm_mixed_terrain",
+  "checkpoint": "model_21500.pt",
+  "checkpoint_sha256": "7a4f09796ce549aa3e25fc3367dbdd0f8bccd8698e896f3214f047ea4e175d67",
+  "export_task": "IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play",
+  "policy_frequency_hz": 50.0,
+  "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor weights unchanged.",
+  "actor_observation_groups": [
+    "policy",
+    "command"
+  ],
+  "agent_configuration": "Saved OnPolicyRunner training configuration; current compositional PPO registration not used.",
+  "export_validation_examples": 5,
+  "ros_adaptation_validation_steps": 25,
+  "ros_adaptation_max_absolute_error": 0.0,
+  "export_date": "2026-10-29",
+  "checkpoint_selection": "Latest uploaded checkpoint at download time; W&B run state was crashed.",
+  "observation_note": "Training projected gravity used random roll/pitch bias of +/-3 degrees. Deployment uses unbiased projected_gravity from measured robot orientation; training observation noise is disabled. Other actor observation scales, history, and parameters match.",
+  "configuration_validation": "Action scaling and joint order, actor observation scales/history/parameters, actuator configuration, default joint positions, and policy period checked against saved training config."
+}

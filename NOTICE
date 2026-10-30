@@ -1,0 +1,5 @@
+This workspace contains selected Isaac ROS sources from NVIDIA and their
+original license and copyright notices. It also includes mujoco_ros2_control
+and mujoco_vendor source snapshots with their original licenses. See
+SOURCE_MANIFEST.json for revisions and applied changes. Downloaded dependencies
+retain their own licenses. This extraction is not an official NVIDIA release.

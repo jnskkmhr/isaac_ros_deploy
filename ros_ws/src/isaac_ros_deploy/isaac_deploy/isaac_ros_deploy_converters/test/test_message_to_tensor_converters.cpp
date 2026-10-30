@@ -1,0 +1,319 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <gtest/gtest.h>
+
+#include <cmath>
+
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "geometry_msgs/msg/twist.hpp"
+#include "geometry_msgs/msg/twist_stamped.hpp"
+#include "rclcpp/serialization.hpp"
+
+#include "isaac_ros_deploy_converters/converters/message_to_tensor_converter.hpp"
+
+namespace isaac_ros_deploy_converters
+{
+
+class MessageToTensorConverterTest : public ::testing::Test
+{
+protected:
+  void SetUp() override
+  {
+    initialize_input_converters();
+  }
+};
+
+// --- Registry tests ---
+
+TEST_F(MessageToTensorConverterTest, DefaultConverterForVelocityCommandIsTwist)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind("command/body/velocity");
+  ASSERT_NE(converter, nullptr);
+  EXPECT_EQ(converter->get_message_type(), "geometry_msgs/msg/Twist");
+}
+
+TEST_F(MessageToTensorConverterTest, ExplicitTwistStampedSelection)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind(
+    "command/body/velocity", {}, "geometry_msgs/msg/TwistStamped");
+  ASSERT_NE(converter, nullptr);
+  EXPECT_EQ(converter->get_message_type(), "geometry_msgs/msg/TwistStamped");
+}
+
+TEST_F(MessageToTensorConverterTest, ExplicitTwistSelection)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind(
+    "command/body/velocity", {}, "geometry_msgs/msg/Twist");
+  ASSERT_NE(converter, nullptr);
+  EXPECT_EQ(converter->get_message_type(), "geometry_msgs/msg/Twist");
+}
+
+TEST_F(MessageToTensorConverterTest, ExplicitPoseStampedPositionSelection)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind(
+    "state/body/position", {}, "geometry_msgs/msg/PoseStamped");
+  ASSERT_NE(converter, nullptr);
+  EXPECT_EQ(converter->get_message_type(), "geometry_msgs/msg/PoseStamped");
+}
+
+TEST_F(MessageToTensorConverterTest, ExplicitPoseStampedRotationSelection)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind(
+    "state/body/rotation", {}, "geometry_msgs/msg/PoseStamped");
+  ASSERT_NE(converter, nullptr);
+  EXPECT_EQ(converter->get_message_type(), "geometry_msgs/msg/PoseStamped");
+}
+
+TEST_F(MessageToTensorConverterTest, ExplicitPoseStampedRotation6DSelection)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind(
+    "state/body/rotation_6d", {}, "geometry_msgs/msg/PoseStamped");
+  ASSERT_NE(converter, nullptr);
+  EXPECT_EQ(converter->get_message_type(), "geometry_msgs/msg/PoseStamped");
+}
+
+TEST_F(MessageToTensorConverterTest, UnknownMessageTypeReturnsNullptr)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind(
+    "command/body/velocity", {}, "geometry_msgs/msg/Nonexistent");
+  EXPECT_EQ(converter, nullptr);
+}
+
+TEST_F(MessageToTensorConverterTest, UnknownKindReturnsNullptr)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  EXPECT_EQ(registry.create_for_kind("nonexistent_kind"), nullptr);
+}
+
+// --- Converter output tests ---
+
+template<typename MsgT>
+std::shared_ptr<rclcpp::SerializedMessage> serialize(const MsgT & msg)
+{
+  auto serialized = std::make_shared<rclcpp::SerializedMessage>();
+  rclcpp::Serialization<MsgT> serializer;
+  serializer.serialize_message(&msg, serialized.get());
+  return serialized;
+}
+
+TEST_F(MessageToTensorConverterTest, TwistConverterOutput)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind("command/body/velocity");
+
+  geometry_msgs::msg::Twist twist;
+  twist.linear.x = 1.0;
+  twist.linear.y = 2.0;
+  twist.linear.z = 3.0;
+  twist.angular.x = 4.0;
+  twist.angular.y = 5.0;
+  twist.angular.z = 6.0;
+
+  const auto tensor = converter->convert(serialize(twist));
+  ASSERT_EQ(tensor.sizes(), (std::vector<int64_t>{1, 6}));
+
+  const auto accessor = tensor.accessor<float, 2>();
+  EXPECT_FLOAT_EQ(accessor[0][0], 1.0f);
+  EXPECT_FLOAT_EQ(accessor[0][1], 2.0f);
+  EXPECT_FLOAT_EQ(accessor[0][2], 3.0f);
+  EXPECT_FLOAT_EQ(accessor[0][3], 4.0f);
+  EXPECT_FLOAT_EQ(accessor[0][4], 5.0f);
+  EXPECT_FLOAT_EQ(accessor[0][5], 6.0f);
+}
+
+TEST_F(MessageToTensorConverterTest, TwistStampedConverterOutput)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind(
+    "command/body/velocity", {}, "geometry_msgs/msg/TwistStamped");
+
+  geometry_msgs::msg::TwistStamped twist_stamped;
+  twist_stamped.twist.linear.x = 1.0;
+  twist_stamped.twist.linear.y = 2.0;
+  twist_stamped.twist.linear.z = 3.0;
+  twist_stamped.twist.angular.x = 4.0;
+  twist_stamped.twist.angular.y = 5.0;
+  twist_stamped.twist.angular.z = 6.0;
+
+  const auto tensor = converter->convert(serialize(twist_stamped));
+  ASSERT_EQ(tensor.sizes(), (std::vector<int64_t>{1, 6}));
+
+  const auto accessor = tensor.accessor<float, 2>();
+  EXPECT_FLOAT_EQ(accessor[0][0], 1.0f);
+  EXPECT_FLOAT_EQ(accessor[0][1], 2.0f);
+  EXPECT_FLOAT_EQ(accessor[0][2], 3.0f);
+  EXPECT_FLOAT_EQ(accessor[0][3], 4.0f);
+  EXPECT_FLOAT_EQ(accessor[0][4], 5.0f);
+  EXPECT_FLOAT_EQ(accessor[0][5], 6.0f);
+}
+
+TEST_F(MessageToTensorConverterTest, PoseStampedPositionConverterOutput)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind(
+    "state/body/position", {}, "geometry_msgs/msg/PoseStamped");
+
+  geometry_msgs::msg::PoseStamped pose_stamped;
+  pose_stamped.pose.position.x = 0.11;
+  pose_stamped.pose.position.y = -0.22;
+  pose_stamped.pose.position.z = 0.33;
+
+  const auto tensor = converter->convert(serialize(pose_stamped));
+  ASSERT_EQ(tensor.sizes(), (std::vector<int64_t>{1, 3}));
+
+  const auto accessor = tensor.accessor<float, 2>();
+  EXPECT_FLOAT_EQ(accessor[0][0], 0.11f);
+  EXPECT_FLOAT_EQ(accessor[0][1], -0.22f);
+  EXPECT_FLOAT_EQ(accessor[0][2], 0.33f);
+
+  const auto spec = converter->get_tensor_spec();
+  EXPECT_EQ(spec.names, (std::vector<std::vector<std::string>>{{}, {"x", "y", "z"}}));
+}
+
+TEST_F(MessageToTensorConverterTest, PoseStampedRotationConverterOutput)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind(
+    "state/body/rotation", {}, "geometry_msgs/msg/PoseStamped");
+
+  geometry_msgs::msg::PoseStamped pose_stamped;
+  pose_stamped.pose.orientation.x = 0.1;
+  pose_stamped.pose.orientation.y = 0.2;
+  pose_stamped.pose.orientation.z = 0.3;
+  pose_stamped.pose.orientation.w = 0.9;
+
+  const auto tensor = converter->convert(serialize(pose_stamped));
+  ASSERT_EQ(tensor.sizes(), (std::vector<int64_t>{1, 4}));
+
+  const auto accessor = tensor.accessor<float, 2>();
+  EXPECT_FLOAT_EQ(accessor[0][0], 0.1f);
+  EXPECT_FLOAT_EQ(accessor[0][1], 0.2f);
+  EXPECT_FLOAT_EQ(accessor[0][2], 0.3f);
+  EXPECT_FLOAT_EQ(accessor[0][3], 0.9f);
+
+  const auto spec = converter->get_tensor_spec();
+  EXPECT_EQ(spec.names, (std::vector<std::vector<std::string>>{{}, {"qx", "qy", "qz", "qw"}}));
+}
+
+TEST_F(MessageToTensorConverterTest, PoseStampedRotationConverterPreservesNegativeW)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind(
+    "state/body/rotation", {}, "geometry_msgs/msg/PoseStamped");
+
+  geometry_msgs::msg::PoseStamped pose_stamped;
+  pose_stamped.pose.orientation.x = 0.1;
+  pose_stamped.pose.orientation.y = -0.2;
+  pose_stamped.pose.orientation.z = 0.3;
+  pose_stamped.pose.orientation.w = -0.9;
+
+  const auto tensor = converter->convert(serialize(pose_stamped));
+  ASSERT_EQ(tensor.sizes(), (std::vector<int64_t>{1, 4}));
+
+  const auto accessor = tensor.accessor<float, 2>();
+  EXPECT_FLOAT_EQ(accessor[0][0], 0.1f);
+  EXPECT_FLOAT_EQ(accessor[0][1], -0.2f);
+  EXPECT_FLOAT_EQ(accessor[0][2], 0.3f);
+  EXPECT_FLOAT_EQ(accessor[0][3], -0.9f);
+}
+
+TEST_F(MessageToTensorConverterTest, PoseStampedRotation6DIdentityOutput)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind(
+    "state/body/rotation_6d", {}, "geometry_msgs/msg/PoseStamped");
+
+  geometry_msgs::msg::PoseStamped pose_stamped;
+  pose_stamped.pose.orientation.x = 0.0;
+  pose_stamped.pose.orientation.y = 0.0;
+  pose_stamped.pose.orientation.z = 0.0;
+  pose_stamped.pose.orientation.w = 1.0;
+
+  const auto tensor = converter->convert(serialize(pose_stamped));
+  ASSERT_EQ(tensor.sizes(), (std::vector<int64_t>{1, 6}));
+
+  const auto accessor = tensor.accessor<float, 2>();
+  EXPECT_FLOAT_EQ(accessor[0][0], 1.0f);
+  EXPECT_FLOAT_EQ(accessor[0][1], 0.0f);
+  EXPECT_FLOAT_EQ(accessor[0][2], 0.0f);
+  EXPECT_FLOAT_EQ(accessor[0][3], 0.0f);
+  EXPECT_FLOAT_EQ(accessor[0][4], 1.0f);
+  EXPECT_FLOAT_EQ(accessor[0][5], 0.0f);
+
+  const auto spec = converter->get_tensor_spec();
+  EXPECT_EQ(
+    spec.names,
+    (std::vector<std::vector<std::string>>{
+      {}, {"r00", "r01", "r02", "r10", "r11", "r12"}}));
+}
+
+TEST_F(MessageToTensorConverterTest, PoseStampedRotation6DYaw90Output)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind(
+    "state/body/rotation_6d", {}, "geometry_msgs/msg/PoseStamped");
+
+  geometry_msgs::msg::PoseStamped pose_stamped;
+  pose_stamped.pose.orientation.x = 0.0;
+  pose_stamped.pose.orientation.y = 0.0;
+  pose_stamped.pose.orientation.z = std::sqrt(0.5);
+  pose_stamped.pose.orientation.w = std::sqrt(0.5);
+
+  const auto tensor = converter->convert(serialize(pose_stamped));
+  ASSERT_EQ(tensor.sizes(), (std::vector<int64_t>{1, 6}));
+
+  const auto accessor = tensor.accessor<float, 2>();
+  EXPECT_NEAR(accessor[0][0], 0.0f, 1e-6f);
+  EXPECT_NEAR(accessor[0][1], -1.0f, 1e-6f);
+  EXPECT_NEAR(accessor[0][2], 0.0f, 1e-6f);
+  EXPECT_NEAR(accessor[0][3], 1.0f, 1e-6f);
+  EXPECT_NEAR(accessor[0][4], 0.0f, 1e-6f);
+  EXPECT_NEAR(accessor[0][5], 0.0f, 1e-6f);
+}
+
+TEST_F(MessageToTensorConverterTest, BothConvertersProduceSameTensorSpec)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto twist_conv = registry.create_for_kind("command/body/velocity");
+  const auto stamped_conv = registry.create_for_kind(
+    "command/body/velocity", {}, "geometry_msgs/msg/TwistStamped");
+
+  const auto twist_spec = twist_conv->get_tensor_spec();
+  const auto stamped_spec = stamped_conv->get_tensor_spec();
+  EXPECT_EQ(twist_spec.names, stamped_spec.names);
+}
+
+TEST_F(MessageToTensorConverterTest, TwistConvertersUseIsaacLabVelocityNames)
+{
+  auto & registry = MessageToTensorConverterRegistry::instance();
+  const auto converter = registry.create_for_kind("command/body/velocity");
+
+  const auto spec = converter->get_tensor_spec();
+  EXPECT_EQ(
+    spec.names,
+    (std::vector<std::vector<std::string>>{
+      {},
+      {"lin_vel_x", "lin_vel_y", "lin_vel_z", "ang_vel_x", "ang_vel_y", "ang_vel_z"}}));
+}
+
+}  // namespace isaac_ros_deploy_converters

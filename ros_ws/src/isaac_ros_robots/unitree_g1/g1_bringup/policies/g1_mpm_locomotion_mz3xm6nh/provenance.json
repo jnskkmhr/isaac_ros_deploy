@@ -1,0 +1,22 @@
+{
+  "wandb_run": "mz3xm6nh",
+  "wandb_entity": "jnskkmr",
+  "wandb_project": "g1_29dof_mpm_mixed_terrain",
+  "checkpoint": "model_25000.pt",
+  "checkpoint_sha256": "d9ed48becf95d99681cbd3b6909a3750bb3232a42f3ea5cb38550ab3944bbe11",
+  "export_task": "IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play",
+  "policy_frequency_hz": 50.0,
+  "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor weights unchanged.",
+  "actor_observation_groups": [
+    "policy",
+    "command"
+  ],
+  "agent_configuration": "Saved OnPolicyRunner training configuration; current compositional PPO registration not used.",
+  "export_validation_examples": 5,
+  "ros_adaptation_validation_steps": 25,
+  "ros_adaptation_max_absolute_error": 0.0,
+  "export_date": "2026-10-27",
+  "checkpoint_selection": "Latest uploaded checkpoint at download time; W&B run state was crashed.",
+  "observation_note": "Saved and exported actor observation definitions match; absent optional parameter dictionaries resolve to empty defaults.",
+  "configuration_validation": "Action scaling and joint order, actor observation scales/history/parameters, actuator configuration, default joint positions, and policy period checked against saved training config."
+}

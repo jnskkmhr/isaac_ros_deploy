@@ -1,0 +1,32 @@
+# syntax=docker/dockerfile:1
+# SPDX-License-Identifier: Apache-2.0
+# EXPERIMENTAL: native JetPack 6.2 / JetPack 5.x build and runtime verification required.
+ARG BASE_IMAGE=isaac-ros-deploy:cpu
+FROM ${BASE_IMAGE} AS ort_build
+ARG DEPLOY_PROFILE=jp6-gpu
+ARG BUILD_JOBS=2
+RUN apt-get update && apt-get install -y --no-install-recommends gcc-11 g++-11 ninja-build \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir cmake==3.31.6
+COPY docker/gpu_dependencies.json /opt/gpu_dependencies.json
+COPY docker/install_gpu_dependencies.py /opt/install_gpu_dependencies.py
+COPY docker/build_onnxruntime_cuda.sh /opt/build_onnxruntime_cuda.sh
+RUN --mount=type=cache,target=/var/cache/deploy-gpu \
+    python3 /opt/install_gpu_dependencies.py "${DEPLOY_PROFILE}"
+RUN BUILD_JOBS=${BUILD_JOBS} bash /opt/build_onnxruntime_cuda.sh "${DEPLOY_PROFILE}"
+
+FROM ${BASE_IMAGE}
+ARG DEPLOY_PROFILE=jp6-gpu
+ENV DEPLOY_PROFILE=${DEPLOY_PROFILE}
+ENV ISAAC_DEPLOY_BACKEND=onnxruntime
+ENV ISAAC_DEPLOY_ONNX_DEVICE=cuda
+RUN rm -rf /opt/onnxruntime
+COPY --from=ort_build /opt/onnxruntime-cuda /opt/onnxruntime
+COPY --from=ort_build /opt/cuda/lib /opt/cuda/lib
+COPY --from=ort_build /opt/cuda-licenses /opt/cuda/licenses
+COPY --from=ort_build /opt/cuda-compat /opt/cuda-compat
+COPY docker/gpu_dependencies.json /opt/gpu_dependencies.json
+# jp5-gpu uses the Jetson-specific CUDA 11.8 user-mode driver upgrade package.
+# jp6-gpu leaves /opt/cuda-compat empty and uses the host driver.
+ENV LD_LIBRARY_PATH=/opt/cuda-compat:/opt/onnxruntime/lib:/opt/cuda/lib
+COPY docker/entrypoint.sh /deploy-entrypoint.sh

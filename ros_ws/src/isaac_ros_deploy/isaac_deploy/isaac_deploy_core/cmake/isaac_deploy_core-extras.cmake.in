@@ -1,0 +1,30 @@
+# isaac_deploy_core CMake extras
+# Exports LibTorch and Triton paths for downstream packages.
+
+# Find Torch package (discover cmake path from pip-installed torch)
+execute_process(
+  COMMAND python3 -c "import torch; print(torch.utils.cmake_prefix_path)"
+  OUTPUT_VARIABLE _TORCH_CMAKE_PREFIX_PATH
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_QUIET
+  RESULT_VARIABLE _torch_result
+)
+if(_torch_result EQUAL 0 AND _TORCH_CMAKE_PREFIX_PATH)
+  list(APPEND CMAKE_PREFIX_PATH "${_TORCH_CMAKE_PREFIX_PATH}")
+endif()
+find_package(Torch REQUIRED)
+
+# Re-create the tritonserver::tritonserver imported target for downstream
+# packages.  The triton_runner library links against this target, so it must
+# exist when consumers call find_package(isaac_deploy_core).
+if("@ISAAC_DEPLOY_BACKEND@" STREQUAL "triton" AND NOT TARGET tritonserver::tritonserver)
+  find_path(_TRITON_INC_DIR triton/core/tritonserver.h HINTS "@TRITON_SERVER_ROOT@/include" REQUIRED)
+  find_library(_TRITONSERVER_SO tritonserver HINTS "@TRITON_SERVER_ROOT@/lib" REQUIRED)
+  get_filename_component(_TRITON_LIB_DIR "${_TRITONSERVER_SO}" DIRECTORY)
+
+  add_library(tritonserver::tritonserver SHARED IMPORTED)
+  set_target_properties(tritonserver::tritonserver PROPERTIES
+    IMPORTED_LOCATION "${_TRITON_LIB_DIR}/libtritonserver.so"
+    INTERFACE_INCLUDE_DIRECTORIES "${_TRITON_INC_DIR}"
+  )
+endif()

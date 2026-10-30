@@ -1,0 +1,12 @@
+ros_ws/build/
+ros_ws/install/
+ros_ws/log/
+recordings/
+__pycache__/
+.pytest_cache/
+validation/
+ros_ws/build-*/
+ros_ws/install-*/
+ros_ws/log-*/
+/core
+/core.[0-9]*

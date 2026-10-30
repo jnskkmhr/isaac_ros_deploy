@@ -1,0 +1,85 @@
+"""
+Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
+NVIDIA CORPORATION and its licensors retain all intellectual property
+and proprietary rights in and to this software, related documentation
+and any modifications thereto. Any use, reproduction, disclosure or
+distribution of this software and related documentation without an express
+license agreement from NVIDIA CORPORATION is strictly prohibited.
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("//workspace/shared/pkg:ros_pkg.bzl", "ros")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "message_buffer",
+    hdrs = ["include/isaac_common/messaging/message_buffer.hpp"],
+    includes = ["include"],
+)
+
+cc_library(
+    name = "message_stream_synchronizer",
+    hdrs = ["include/isaac_common/messaging/message_stream_synchronizer.hpp"],
+    includes = ["include"],
+    deps = [
+        ":message_buffer",
+    ],
+)
+
+# Header-only NVTX3 range/mark helpers, dormant (no-op) without USE_NVTX. `defines` on a
+# cc_library propagate to every target that depends on it, so downstream instrumentation only
+# needs to add ":nvtx_scope" to deps -- not repeat this select().
+cc_library(
+    name = "nvtx_scope",
+    hdrs = ["include/isaac_common/tracing/nvtx_scope.hpp"],
+    defines = select({
+        "//workspace/shared/build:use_nvtx": ["USE_NVTX"],
+        "//conditions:default": [],
+    }),
+    includes = ["include"],
+    deps = select({
+        "//workspace/shared/build:use_nvtx": ["@cuda//:nvtx"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_test(
+    name = "test_nvtx_scope",
+    srcs = ["test/test_nvtx_scope.cpp"],
+    deps = [
+        ":nvtx_scope",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "test_message_buffer",
+    srcs = [
+        "test/test_message_buffer.cpp",
+    ],
+    deps = [
+        ":message_buffer",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "test_message_stream_synchronizer",
+    srcs = [
+        "test/test_message_stream_synchronizer.cpp",
+    ],
+    deps = [
+        ":message_buffer",
+        ":message_stream_synchronizer",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+ros.pkg_deb(
+    name = "isaac_common_deb",
+    hdrs = glob(["include/isaac_common/**"]),
+)

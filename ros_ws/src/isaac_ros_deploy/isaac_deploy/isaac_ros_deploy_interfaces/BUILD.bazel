@@ -1,0 +1,76 @@
+"""
+Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+NVIDIA CORPORATION and its licensors retain all intellectual property
+and proprietary rights in and to this software, related documentation
+and any modifications thereto. Any use, reproduction, disclosure or
+distribution of this software and related documentation without an express
+license agreement from NVIDIA CORPORATION is strictly prohibited.
+"""
+
+load(
+    "@isaac_ros2_rules//ros:defs.bzl",
+    "ament_index_share_files",
+    "c_ros2_interface_library",
+    "cc_ros2_interface_library",
+    "py_ros2_interface_library",
+    "ros2_interface",
+)
+load("//workspace/shared/pkg:ros_pkg.bzl", "ros")
+
+package(default_visibility = ["//visibility:public"])
+
+ament_index_share_files(
+    name = "isaac_ros_deploy_interfaces_pkg",
+    package_name = "isaac_ros_deploy_interfaces",
+    srcs = glob([
+        "msg/*",
+    ]),
+    libraries = [
+        ":isaac_ros_deploy_interfaces_cc_interface_library",
+        ":isaac_ros_deploy_interfaces_c",
+        ":isaac_ros_deploy_interfaces_py",
+    ],
+)
+
+ros2_interface(
+    name = "isaac_ros_deploy_interfaces",
+    srcs = [
+        "msg/BodyCommand.msg",
+        "msg/CartesianPoseDeltaCommand.msg",
+        "msg/JointCommand.msg",
+        "msg/JointCommandTrajectory.msg",
+        "msg/ReferenceMotionState.msg",
+    ],
+    deps = [
+        "@ros2packages//builtin-interfaces:builtin_interfaces",
+        "@ros2packages//geometry-msgs:geometry_msgs",
+        "@ros2packages//std-msgs:std_msgs",
+    ],
+)
+
+cc_ros2_interface_library(
+    name = "isaac_ros_deploy_interfaces_cc",
+    deps = [":isaac_ros_deploy_interfaces"],
+)
+
+c_ros2_interface_library(
+    name = "isaac_ros_deploy_interfaces_c",
+    deps = [":isaac_ros_deploy_interfaces"],
+)
+
+py_ros2_interface_library(
+    name = "isaac_ros_deploy_interfaces_py",
+    deps = [":isaac_ros_deploy_interfaces"],
+)
+
+ros.pkg_deb(
+    name = "ros_isaac_ros_deploy_interfaces_deb",
+    libs = [
+        ":isaac_ros_deploy_interfaces_cc_interface_library",
+        ":isaac_ros_deploy_interfaces_c",
+    ],
+    py_libs = [
+        ":isaac_ros_deploy_interfaces_py",
+    ],
+    share_srcs = glob(["msg/*"]),
+)

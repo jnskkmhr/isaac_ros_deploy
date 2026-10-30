@@ -1,0 +1,91 @@
+"""
+Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+NVIDIA CORPORATION and its licensors retain all intellectual property
+and proprietary rights in and to this software, related documentation
+and any modifications thereto. Any use, reproduction, disclosure or
+distribution of this software and related documentation without an express
+license agreement from NVIDIA CORPORATION is strictly prohibited.
+"""
+
+load(
+    "@isaac_ros2_rules//ros:defs.bzl",
+    "ament_index_share_files",
+    "ros2_cc_library",
+    "ros2_cc_shared_library",
+    "ros2_cc_test",
+    "ros_ws",
+)
+load("//workspace/shared/build:utils.bzl", "BASE_ROS_PACKAGE_FILES", "ament_index_paths", "load_paths")
+load("//workspace/shared/pkg:ros_pkg.bzl", "ros")
+
+package(
+    default_visibility = ["//visibility:public"],
+    features = ["c++20"],
+)
+
+ros_ws(
+    name = "ros_ws",
+    ament_index_paths = ament_index_paths(),
+    files = BASE_ROS_PACKAGE_FILES + [
+        "@ros2packages//pinocchio:files",
+    ],
+    load_paths = load_paths(),
+)
+
+ament_index_share_files(
+    name = "isaac_ros_inverse_dynamics_pkg",
+    package_name = "isaac_ros_inverse_dynamics",
+    srcs = [
+        "package.xml",
+    ],
+    libraries = [
+        ":inverse_dynamics_solver_so",
+    ],
+)
+
+# Thin Pinocchio wrapper (RNEA + generalized gravity). Shared by the safety
+# controller (upper-body gravity comp) and the cuMotion bimanual IK controller
+# (feedforward torque).
+ros2_cc_library(
+    name = "inverse_dynamics_solver",
+    srcs = ["src/inverse_dynamics_solver.cpp"],
+    hdrs = ["include/isaac_ros_inverse_dynamics/inverse_dynamics_solver.hpp"],
+    defines = [
+        "BOOST_FUSION_INVOKE_FUNCTION_OBJECT_MAX_ARITY=10",
+        "BOOST_FUSION_INVOKE_MAX_ARITY=10",
+        "BOOST_FUSION_INVOKE_PROCEDURE_MAX_ARITY=10",
+        "BOOST_MPL_CFG_NO_PREPROCESSED_HEADERS",
+        "BOOST_MPL_LIMIT_LIST_SIZE=30",
+    ],
+    includes = ["include"],
+    deps = [
+        "@eigen",
+        "@ros2packages//pinocchio:cc_lib",
+    ],
+)
+
+ros2_cc_shared_library(
+    name = "inverse_dynamics_solver_so",
+    exports_filter = [
+        "@@//ros_ws/src/isaac_ros_deploy/isaac_deploy/isaac_ros_inverse_dynamics:inverse_dynamics_solver__cc_library",
+    ],
+    shared_lib_name = "libinverse_dynamics_solver.so",
+    deps = [":inverse_dynamics_solver"],
+)
+
+ros.pkg_deb(
+    name = "ros_isaac_ros_inverse_dynamics_deb",
+    hdrs = glob(["include/isaac_ros_inverse_dynamics/**/*.hpp"]),
+    cmake_srcs = ["cmake/isaac_ros_inverse_dynamics-extras.cmake"],
+    libs = [":inverse_dynamics_solver_so"],
+)
+
+ros2_cc_test(
+    name = "test_inverse_dynamics_solver",
+    srcs = ["test/test_inverse_dynamics_solver.cpp"],
+    data = [":ros_ws"],
+    deps = [
+        ":inverse_dynamics_solver",
+        "@googletest//:gtest_main",
+    ],
+)

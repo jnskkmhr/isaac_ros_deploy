@@ -1,0 +1,648 @@
+// SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+// Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "isaac_ros_deploy_converters/nodes/input_builder_node.hpp"
+
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <stdexcept>
+#include <unordered_set>
+#include <utility>
+
+#include "rclcpp_components/register_node_macro.hpp"
+
+#include "isaac_deploy_core/inference_controller/config_parser.hpp"
+#include "isaac_common/tracing/nvtx_scope.hpp"
+#include "isaac_deploy_core/inference_controller/safetensors_loader.hpp"
+#include "isaac_ros_deploy_converters/converters/message_to_tensor_converter_nodes.hpp"
+#include "isaac_ros_deploy_converters/utils/tensor_list_utils.hpp"
+
+namespace isaac_ros_deploy_converters
+{
+
+namespace
+{
+
+torch::Dtype parse_torch_dtype(const std::string & dtype_str)
+{
+  if (dtype_str == "float32") {return torch::kFloat32;}
+  if (dtype_str == "float64") {return torch::kFloat64;}
+  if (dtype_str == "int32") {return torch::kInt32;}
+  if (dtype_str == "int64") {return torch::kInt64;}
+  if (dtype_str == "int16") {return torch::kInt16;}
+  if (dtype_str == "int8") {return torch::kInt8;}
+  if (dtype_str == "uint8") {return torch::kUInt8;}
+  throw std::runtime_error("Unsupported dtype string: " + dtype_str);
+}
+
+}  // namespace
+
+InputBuilderNode::InputBuilderNode(const rclcpp::NodeOptions & options)
+: Node("input_builder_node", options)
+{
+  initialize_input_converters();
+  MessageToTensorConverterRegistry::instance().register_converter(
+    "tensor", "isaac_ros_tensor_msgs/msg/TensorList",
+    [](const std::string & source) {
+      return std::make_shared<TensorListConverter>(source);
+    });
+
+  declare_parameter<std::string>("config_path", "");
+  declare_parameter<double>("publish_rate", 0.0);
+  declare_parameter<std::string>("output_topic", "input_tensors");
+  declare_parameter<std::string>("enable_topic", "");
+  declare_parameter<bool>("enabled_on_start", true);
+  declare_parameter<bool>("reset_feedback_on_enable", true);
+  declare_parameter<std::string>("feedback_reset_topic", "");
+
+  config_path_ = get_parameter("config_path").as_string();
+  publish_rate_ = get_parameter("publish_rate").as_double();
+  enabled_ = get_parameter("enabled_on_start").as_bool();
+  reset_feedback_on_enable_ = get_parameter("reset_feedback_on_enable").as_bool();
+
+  if (config_path_.empty()) {
+    throw std::runtime_error("InputBuilderNode: config_path parameter is required");
+  }
+
+  configure();
+}
+
+void InputBuilderNode::configure()
+{
+  YAML::Node config;
+  try {
+    config = YAML::LoadFile(config_path_);
+  } catch (const std::exception & e) {
+    throw std::runtime_error("Failed to load config file: " + std::string(e.what()));
+  }
+
+  auto graph_result = isaac_deploy_core::parse_graph_config(config);
+  if (!graph_result) {
+    throw std::runtime_error(
+      "Failed to parse config: " + graph_result.error().message);
+  }
+
+  // A positive parameter overrides bundle frequency. Zero explicitly requests automatic cadence.
+  const bool use_automatic_cadence = std::fpclassify(publish_rate_) == FP_ZERO;
+  const bool use_graph_frequency =
+    use_automatic_cadence && graph_result->frequency_hz.has_value();
+  if (use_automatic_cadence) {
+    publish_rate_ = graph_result->frequency_hz.value_or(50.0);
+  }
+
+  auto model_config_result = isaac_deploy_core::merge_graph_to_model_config(*graph_result, config);
+  if (!model_config_result) {
+    throw std::runtime_error(
+      "Failed to merge graph config: " + model_config_result.error().message);
+  }
+
+  // Collect feedback target names and source mapping from all models in the graph.
+  std::unordered_set<std::string> feedback_target_names;
+  std::unordered_map<std::string, std::string> feedback_source_map;  // input_name -> output_name
+  for (const auto & [model_name, model_config] : graph_result->models) {
+    for (const auto & [output_name, input_names] : model_config.feedback_flow) {
+      for (const auto & name : input_names) {
+        feedback_target_names.insert(name);
+        feedback_source_map[name] = output_name;
+      }
+    }
+  }
+
+  // Ensure feedback inputs and connections are present in merged config.
+  // For single-model, merge preserves them; for multi-model, it strips them.
+  // Re-adding unconditionally is safe: connections are map-assigned (idempotent),
+  // and inputs are filtered first to avoid duplicates.
+  //
+  // NOTE: We must build the complete new_inputs list before assigning to
+  // model_config_result->inputs because YAML::Node operator= mutates through
+  // aliases — the single-model path shares the underlying node with graph_result.
+  if (!feedback_target_names.empty()) {
+    YAML::Node new_inputs(YAML::NodeType::Sequence);
+    for (const auto & input : model_config_result->inputs) {
+      if (!feedback_target_names.contains(input["name"].as<std::string>())) {
+        new_inputs.push_back(input);
+      }
+    }
+
+    for (const auto & [model_name, model_config] : graph_result->models) {
+      for (const auto & [output_name, input_names] : model_config.feedback_flow) {
+        model_config_result->feedback_flow[output_name] = input_names;
+      }
+      for (const auto & input : model_config.inputs) {
+        if (feedback_target_names.contains(input["name"].as<std::string>())) {
+          new_inputs.push_back(input);
+        }
+      }
+    }
+
+    model_config_result->inputs = new_inputs;
+  }
+
+  const auto builder_config_result =
+    isaac_deploy_core::InputBuilder::Config::create_from_model_config(*model_config_result);
+  if (!builder_config_result) {
+    throw std::runtime_error(
+      "Failed to parse InputBuilder config: " + builder_config_result.error().message);
+  }
+
+  auto builder_result = isaac_deploy_core::InputBuilder::create(*builder_config_result);
+  if (!builder_result) {
+    throw std::runtime_error(
+      "Failed to create InputBuilder: " + builder_result.error().message);
+  }
+  input_builder_ = std::move(*builder_result);
+
+  // Collect feedback dtype info for zero-initialization.
+  // Use feedback_source_map to resolve each feedback input's source (the output
+  // name it connects to), since "source" is not a raw YAML field.
+  std::unordered_map<std::string, torch::Dtype> feedback_dtypes;
+  for (const auto & input : model_config_result->inputs) {
+    const auto name = input["name"].as<std::string>();
+    if (const auto it = feedback_source_map.find(name); it != feedback_source_map.end()) {
+      feedback_dtypes[it->second] = parse_torch_dtype(input["dtype"].as<std::string>("float32"));
+    }
+  }
+
+  auto feedback_initial_values_result = isaac_deploy_core::load_feedback_initial_values(
+    *graph_result, config_path_);
+  if (!feedback_initial_values_result) {
+    throw std::runtime_error(
+      "Failed to load feedback initial values: " +
+      feedback_initial_values_result.error().message);
+  }
+
+  create_subscription_groups(feedback_dtypes, *feedback_initial_values_result);
+
+  // Create single output publisher for the bundled TensorList.
+  const auto output_topic = get_parameter("output_topic").as_string();
+  output_pub_ =
+    create_publisher<isaac_ros_tensor_msgs::msg::TensorList>(output_topic, 10);
+  RCLCPP_INFO(get_logger(), "Publishing bundled TensorList on '%s'", output_topic.c_str());
+
+  if (!std::isfinite(publish_rate_) || publish_rate_ <= 0.0) {
+    throw std::runtime_error("InputBuilderNode: publish_rate must be positive");
+  }
+  const auto timer_period = std::chrono::duration<double>(1.0 / publish_rate_);
+  if (timer_period < std::chrono::nanoseconds(1) ||
+    timer_period > std::chrono::nanoseconds::max())
+  {
+    const std::string source = use_graph_frequency ?
+      "pipeline.configs.frequency" : "publish_rate";
+    throw std::runtime_error(
+            "InputBuilderNode: " + source + " is outside the supported timer range");
+  }
+
+  const auto enable_topic = get_parameter("enable_topic").as_string();
+  if (!enable_topic.empty()) {
+    enable_sub_ = create_subscription<std_msgs::msg::Bool>(
+      enable_topic, 1,
+      std::bind(&InputBuilderNode::enable_callback, this, std::placeholders::_1));
+    RCLCPP_INFO(
+      get_logger(), "Gating publication on '%s' (enabled_on_start=%s)",
+      enable_topic.c_str(), enabled_ ? "true" : "false");
+  } else {
+    // With no gate topic there is nothing that could ever open the gate, so an
+    // absent gate means always enabled rather than permanently mute.
+    if (!enabled_) {
+      RCLCPP_WARN(
+        get_logger(),
+        "Ignoring enabled_on_start=false because enable_topic is empty: with no gate topic "
+        "nothing could ever enable this node. Set enable_topic to gate publication.");
+    }
+    enabled_ = true;
+  }
+
+  const auto feedback_reset_topic = get_parameter("feedback_reset_topic").as_string();
+  if (!feedback_reset_topic.empty()) {
+    feedback_reset_sub_ = create_subscription<std_msgs::msg::Empty>(
+      feedback_reset_topic, 1,
+      [this](const std_msgs::msg::Empty::SharedPtr) {
+        reset_feedback("reset requested on the feedback reset topic");
+      });
+    RCLCPP_INFO(
+      get_logger(), "Listening for feedback resets on '%s'", feedback_reset_topic.c_str());
+  }
+
+  const auto period = std::chrono::duration_cast<std::chrono::nanoseconds>(timer_period);
+  timer_ = rclcpp::create_timer(
+    this,
+    get_clock(),
+    period,
+    std::bind(&InputBuilderNode::timer_callback, this));
+
+  RCLCPP_INFO(
+    get_logger(), "InputBuilderNode configured with %zu subscription groups",
+    subscription_groups_.size());
+}
+
+void InputBuilderNode::create_subscription_groups(
+  const std::unordered_map<std::string, torch::Dtype> & feedback_dtypes,
+  const isaac_deploy_core::TensorDict & feedback_initial_values)
+{
+  const auto source_to_kind = input_builder_->get_source_to_kind_map();
+  auto & registry = MessageToTensorConverterRegistry::instance();
+
+  // Helper: resolve the ROS topic for a given source name via parameter.
+  auto resolve_topic = [this](const std::string & source) -> std::string {
+      const std::string param_name = "source_to_topic." + source;
+      declare_parameter<std::string>(param_name, source);
+      return get_parameter(param_name).as_string();
+    };
+
+  // Helper: resolve the ROS message type override for a given source via parameter.
+  auto resolve_message_type = [this](const std::string & source) -> std::string {
+      const std::string param_name = "source_message_type." + source;
+      declare_parameter<std::string>(param_name, "");
+      const auto value = get_parameter(param_name).as_string();
+      return value;
+    };
+
+  // Helper: add a converter to the appropriate group, creating a new group if needed.
+  std::unordered_map<std::string, std::unique_ptr<SubscriptionGroup>> groups;
+  auto add_to_group = [&](
+    const std::string & source, const std::string & topic,
+    std::shared_ptr<MessageToTensorConverter> converter,
+    std::optional<torch::Tensor> initial_value = std::nullopt) {
+      const std::string message_type = converter->get_message_type();
+      auto it = groups.find(topic);
+      if (it == groups.end()) {
+        auto group = std::make_unique<SubscriptionGroup>();
+        group->topic = topic;
+        group->message_type = message_type;
+        group->converters.push_back({source, converter, initial_value});
+        groups[topic] = std::move(group);
+        return;
+      }
+      if (it->second->message_type != message_type) {
+        RCLCPP_ERROR(
+          get_logger(),
+          "Message type conflict for topic '%s': '%s' vs '%s' (source '%s')",
+          topic.c_str(), it->second->message_type.c_str(),
+          message_type.c_str(), source.c_str());
+        return;
+      }
+      it->second->converters.push_back({source, converter, initial_value});
+    };
+
+  // External inputs: create converters from registry by kind.
+  // Inputs with no declared kind (e.g. dangling tensor inputs in clean leapp
+  // exports such as the diffusion-policy initial_noise seed) fall back to the
+  // raw 'tensor' kind, which subscribes to a TensorList topic.
+  for (const auto & [source, raw_kind] : source_to_kind) {
+    const std::string kind = raw_kind.empty() ? "tensor" : raw_kind;
+    const auto message_type = resolve_message_type(source);
+    auto converter = registry.create_for_kind(kind, source, message_type);
+    if (!converter) {
+      RCLCPP_WARN(
+        get_logger(), "No converter found for kind '%s' (source '%s'), skipping",
+        kind.c_str(), source.c_str());
+      continue;
+    }
+    add_to_group(source, resolve_topic(source), converter);
+  }
+
+  // Feedback inputs: subscribe to inference output topic with LEAPP initial values
+  // when present, otherwise fall back to zero-initialized tensors.
+  const auto feedback_names = input_builder_->get_feedback_input_names();
+  const auto feedback_shapes = input_builder_->get_feedback_input_shapes();
+  const std::string feedback_topic = "output_tensors";
+
+  for (size_t i = 0; i < feedback_names.size(); ++i) {
+    auto converter = std::make_shared<TensorListConverter>(feedback_names[i]);
+    auto initial_tensor_it = feedback_initial_values.find(feedback_names[i]);
+    if (initial_tensor_it != feedback_initial_values.end()) {
+      if (initial_tensor_it->second.sizes().vec() != feedback_shapes[i]) {
+        throw std::runtime_error(
+          "Initial feedback value for '" + feedback_names[i] +
+          "' has shape that does not match the configured feedback input");
+      }
+      add_to_group(feedback_names[i], feedback_topic, converter, initial_tensor_it->second);
+    } else {
+      const auto dtype_it = feedback_dtypes.find(feedback_names[i]);
+      const auto dtype = dtype_it != feedback_dtypes.end() ? dtype_it->second : torch::kFloat32;
+      add_to_group(feedback_names[i], feedback_topic, converter,
+          torch::zeros(feedback_shapes[i], dtype));
+    }
+  }
+
+  // Create subscriptions for each group.
+  for (auto & [topic, group] : groups) {
+    group->has_initial_values = std::all_of(
+      group->converters.begin(), group->converters.end(),
+      [](const auto & entry) {return entry.initial_value.has_value();});
+
+    auto callback = [this, grp = group.get()](std::shared_ptr<rclcpp::SerializedMessage> msg) {
+        std::lock_guard<std::mutex> lock(grp->mutex);
+        ++grp->received;
+        grp->latest_msg = msg;
+        grp->receive_time = now();
+      };
+
+    group->mark_received = "in:" + topic + ":received";
+    group->mark_latch_age = "in:" + topic + ":latch_age_ns";
+
+    // Every group latches only its latest message for timer sampling, including feedback.
+    // Depth 1 avoids unread backlogs. Repeated state updates tolerate loss, so best effort
+    // avoids requesting retransmission of samples the consumer no longer needs.
+    group->subscription = create_generic_subscription(
+      topic, group->message_type, rclcpp::QoS(1).best_effort(), callback);
+
+    std::string names_str;
+    for (const auto & entry : group->converters) {
+      if (!names_str.empty()) {names_str += ", ";}
+      names_str += entry.source;
+    }
+
+    RCLCPP_INFO(
+      get_logger(), "Subscribed to '%s' [%s] for sources: %s",
+      topic.c_str(), group->message_type.c_str(), names_str.c_str());
+
+    subscription_groups_.push_back(std::move(group));
+  }
+}
+
+void InputBuilderNode::timer_callback()
+{
+  // Envelope for the GR00T input cycle. This node runs outside the ros2_control loop, so without
+  // it the NitrosTensorList conversions it drives are unattributable in a capture.
+  ISAAC_DEPLOY_NVTX_SCOPE("gr00t:input_cycle", nvidia::isaac_ros::tracing::kColorUpdate);
+
+  const rclcpp::Time current_stamp = now();
+
+  // Convert messages from all subscription groups.
+  isaac_deploy_core::TensorDict all_converted;
+  bool all_groups_ready = true;
+
+  for (auto & group : subscription_groups_) {
+    std::shared_ptr<rclcpp::SerializedMessage> msg;
+    uint64_t received = 0;
+    rclcpp::Time received_at{0, 0, RCL_ROS_TIME};
+    {
+      std::lock_guard<std::mutex> lock(group->mutex);
+      msg = group->latest_msg;
+      received = group->received;
+      received_at = group->receive_time;
+    }
+
+    // Per-input staleness and drop rate. The delta in received between consecutive builds is how
+    // many messages arrived for the one that was used; anything above 1 was discarded unseen.
+    if (msg && nvidia::isaac_ros::tracing::enabled()) {
+      nvidia::isaac_ros::tracing::mark_u64(group->mark_received.c_str(), received);
+      const auto latch_age = current_stamp - received_at;
+      if (latch_age.nanoseconds() > 0) {
+        nvidia::isaac_ros::tracing::mark_u64(
+          group->mark_latch_age.c_str(), static_cast<uint64_t>(latch_age.nanoseconds()));
+      }
+    }
+
+    if (!msg) {
+      if (group->has_initial_values) {
+        for (const auto & entry : group->converters) {
+          all_converted[entry.source] = *entry.initial_value;
+        }
+      } else {
+        all_groups_ready = false;
+      }
+      continue;
+    }
+
+    // convert() throws on a malformed payload, for example a TensorList whose
+    // names and tensors disagree. Letting that escape this timer callback
+    // unwinds the executor and takes the node down, so drop the cycle instead.
+    try {
+      for (const auto & entry : group->converters) {
+        all_converted[entry.source] = entry.converter->convert(msg);
+      }
+    } catch (const std::exception & exc) {
+      RCLCPP_ERROR_THROTTLE(
+        get_logger(), *get_clock(), 1000,
+        "Skipping model input publication, could not convert a message on '%s': %s",
+        group->topic.c_str(), exc.what());
+      return;
+    }
+  }
+
+  // Activate InputBuilder on first complete set of inputs.
+  if (!activated_ && input_builder_) {
+    if (!all_groups_ready) {
+      for (const auto & group : subscription_groups_) {
+        if (group->latest_msg) {
+          continue;
+        }
+        // Skip groups with initial values (e.g., feedback) — they don't block activation.
+        if (group->has_initial_values) {
+          continue;
+        }
+        if (group->subscription->get_publisher_count() == 0) {
+          RCLCPP_WARN_THROTTLE(
+            get_logger(), *get_clock(), 5000,
+            "Waiting for publisher on topic '%s' [%s] — no publishers connected",
+            group->topic.c_str(), group->message_type.c_str());
+        } else {
+          RCLCPP_INFO_THROTTLE(
+            get_logger(), *get_clock(), 5000,
+            "Waiting for first message on topic '%s' [%s]",
+            group->topic.c_str(), group->message_type.c_str());
+        }
+      }
+      return;
+    }
+
+    // Build TensorSpec map from non-feedback converters (keyed by source).
+    std::unordered_map<std::string, isaac_deploy_core::TensorSpec> input_specs_map;
+    for (const auto & group : subscription_groups_) {
+      for (const auto & entry : group->converters) {
+        input_specs_map[entry.source] = entry.converter->get_tensor_spec();
+      }
+    }
+
+    // Build activation vectors ordered by get_unique_source_names().
+    const auto required_sources = input_builder_->get_unique_source_names();
+    builder_inputs_.clear();
+    builder_input_specs_.clear();
+    for (const auto & source : required_sources) {
+      const auto tensor_it = all_converted.find(source);
+      const auto tensor = tensor_it != all_converted.end() ? tensor_it->second : torch::Tensor{};
+      builder_inputs_.push_back({source, 0, tensor});
+
+      const auto spec_it = input_specs_map.find(source);
+      builder_input_specs_.push_back(
+        spec_it != input_specs_map.end() ? spec_it->second : isaac_deploy_core::TensorSpec{});
+    }
+
+    auto result = input_builder_->activate(builder_inputs_, builder_input_specs_);
+    if (!result) {
+      RCLCPP_ERROR(
+        get_logger(), "Failed to activate InputBuilder: %s",
+        result.error().message.c_str());
+      return;
+    }
+
+    for (const auto & key : input_builder_->get_output_names()) {
+      nn_inputs_[key] = torch::empty({});
+    }
+
+    activated_ = true;
+    RCLCPP_INFO(get_logger(), "InputBuilder activated");
+  }
+
+  if (!activated_) {
+    return;
+  }
+
+  if (!enabled_) {
+    RCLCPP_WARN_THROTTLE(
+      get_logger(), *get_clock(), 2000,
+      "Not publishing model inputs because the enable gate is closed");
+    return;
+  }
+
+  validate_input_synchronization(current_stamp);
+
+  // Update builder_inputs_ with latest converted tensors (positionally aligned).
+  for (size_t i = 0; i < builder_inputs_.size(); ++i) {
+    auto it = all_converted.find(builder_inputs_[i].name);
+    if (it != all_converted.end()) {
+      builder_inputs_[i].tensor = it->second;
+    }
+  }
+
+  auto result = input_builder_->advance(builder_inputs_, nn_inputs_);
+  if (!result) {
+    RCLCPP_ERROR(
+      get_logger(), "InputBuilder advance failed: %s",
+      result.error().message.c_str());
+    return;
+  }
+
+  // Build a single TensorList with all model inputs.
+  isaac_ros_tensor_msgs::msg::TensorList msg;
+  msg.header.stamp = current_stamp;
+
+  // torch -> ROS marshalling then publish. Payload is current_stamp in ns: the pipeline's
+  // correlation key is MINTED here and rides msg.header.stamp through the rest of the chain.
+  static const nvidia::isaac_ros::tracing::RegisteredName publish_name{"gr00t:input_publish"};
+  const nvidia::isaac_ros::tracing::ScopedRange publish_span{
+    publish_name, nvidia::isaac_ros::tracing::kColorOutputTerm,
+    static_cast<uint64_t>(current_stamp.nanoseconds())};
+
+  for (const auto & [name, tensor] : nn_inputs_) {
+    msg.names.push_back(name);
+    msg.tensors.push_back(torch_to_tensor_msg(tensor));
+  }
+
+  output_pub_->publish(msg);
+}
+
+void InputBuilderNode::reset_feedback(const std::string & reason)
+{
+  size_t reset_groups = 0;
+  for (auto & group : subscription_groups_) {
+    if (!group->has_initial_values) {
+      continue;
+    }
+    std::lock_guard<std::mutex> lock(group->mutex);
+    if (group->latest_msg) {
+      group->latest_msg.reset();
+      ++reset_groups;
+    }
+  }
+  if (reset_groups > 0) {
+    RCLCPP_INFO(
+      get_logger(), "Restored the exported initial feedback tensors: %s", reason.c_str());
+  }
+}
+
+void InputBuilderNode::enable_callback(const std_msgs::msg::Bool::SharedPtr msg)
+{
+  const bool enabled = msg->data;
+  if (enabled == enabled_) {
+    return;
+  }
+  enabled_ = enabled;
+  if (enabled_) {
+    if (reset_feedback_on_enable_) {
+      reset_feedback("enable gate rising edge");
+    }
+    RCLCPP_INFO(get_logger(), "Model input publication enabled");
+  } else {
+    RCLCPP_INFO(get_logger(), "Model input publication disabled");
+  }
+}
+
+void InputBuilderNode::validate_input_synchronization(const rclcpp::Time & current_time)
+{
+  if (subscription_groups_.empty()) {
+    return;
+  }
+
+  // Collect receive times from all groups that have received messages.
+  std::vector<std::pair<std::string, rclcpp::Time>> receive_times;
+  for (const auto & group : subscription_groups_) {
+    rclcpp::Time recv_time;
+    {
+      std::lock_guard<std::mutex> lock(group->mutex);
+      if (!group->latest_msg) {
+        continue;  // No message received yet.
+      }
+      recv_time = group->receive_time;
+    }
+    receive_times.emplace_back(group->topic, recv_time);
+  }
+
+  if (receive_times.size() < 2) {
+    return;  // Need at least 2 inputs to compare.
+  }
+
+  // Find min and max receive times.
+  auto [min_it, max_it] = std::minmax_element(
+    receive_times.begin(), receive_times.end(),
+    [](const auto & a, const auto & b) {
+      return a.second < b.second;
+    });
+
+  const int64_t spread_ns = max_it->second.nanoseconds() - min_it->second.nanoseconds();
+
+  // Also check staleness: how old is the oldest input relative to current time.
+  const int64_t staleness_ns = current_time.nanoseconds() - min_it->second.nanoseconds();
+
+  constexpr int64_t kSyncToleranceNs = 50'000'000;  // 50ms tolerance for input sync.
+  constexpr int64_t kStalenessToleranceNs = 100'000'000;  // 100ms tolerance for staleness.
+
+  if (spread_ns > kSyncToleranceNs) {
+    RCLCPP_WARN_THROTTLE(
+      get_logger(), *get_clock(), 1000,
+      "Input timestamps out of sync: '%s' and '%s' differ by %.1f ms (threshold: %.1f ms)",
+      min_it->first.c_str(),
+      max_it->first.c_str(),
+      static_cast<double>(spread_ns) / 1e6,
+      static_cast<double>(kSyncToleranceNs) / 1e6);
+  }
+
+  if (staleness_ns > kStalenessToleranceNs) {
+    RCLCPP_WARN_THROTTLE(
+      get_logger(), *get_clock(), 1000,
+      "Input '%s' is stale: last received %.1f ms ago (threshold: %.1f ms)",
+      min_it->first.c_str(),
+      static_cast<double>(staleness_ns) / 1e6,
+      static_cast<double>(kStalenessToleranceNs) / 1e6);
+  }
+}
+
+}  // namespace isaac_ros_deploy_converters
+
+RCLCPP_COMPONENTS_REGISTER_NODE(isaac_ros_deploy_converters::InputBuilderNode)

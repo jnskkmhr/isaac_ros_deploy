@@ -1,0 +1,563 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+cmake_minimum_required(VERSION 3.16)
+project(isaac_deploy_core VERSION 0.1.0)
+
+# Default to C++20 (matching Bazel config).
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 20)
+endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Werror -Wno-missing-field-initializers)
+endif()
+
+# Find dependencies.
+find_package(ament_cmake REQUIRED)
+find_package(yaml-cpp REQUIRED)
+find_package(nlohmann_json REQUIRED)
+find_package(isaac_common REQUIRED)
+
+if("$ENV{ROS_DISTRO}" STREQUAL "lyrical")
+  find_package(rcpputils REQUIRED)
+  set(ISAAC_DEPLOY_USE_BUNDLED_TL_EXPECTED TRUE)
+else()
+  find_package(tl_expected REQUIRED)
+endif()
+
+# Find LibTorch (installed via pip in the Docker image).
+# Use Python to discover torch's cmake config path since pip installs
+# place it outside CMake's default search paths.
+execute_process(
+  COMMAND python3 -c "import torch; print(torch.utils.cmake_prefix_path)"
+  OUTPUT_VARIABLE TORCH_CMAKE_PREFIX_PATH
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_QUIET
+  RESULT_VARIABLE _torch_result
+)
+if(_torch_result EQUAL 0 AND TORCH_CMAKE_PREFIX_PATH)
+  list(APPEND CMAKE_PREFIX_PATH "${TORCH_CMAKE_PREFIX_PATH}")
+endif()
+find_package(Torch REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+
+set(ISAAC_DEPLOY_BACKEND "onnxruntime" CACHE STRING "Inference backend: onnxruntime or triton")
+set_property(CACHE ISAAC_DEPLOY_BACKEND PROPERTY STRINGS onnxruntime triton)
+if(NOT ISAAC_DEPLOY_BACKEND MATCHES "^(onnxruntime|triton)$")
+  message(FATAL_ERROR "Unsupported ISAAC_DEPLOY_BACKEND=${ISAAC_DEPLOY_BACKEND}")
+endif()
+if(ISAAC_DEPLOY_BACKEND STREQUAL "triton")
+  set(TRITON_SERVER_ROOT "$ENV{TRITON_SERVER_ROOT}" CACHE PATH "Installed Triton server root")
+  if(NOT TRITON_SERVER_ROOT)
+    set(TRITON_SERVER_ROOT /opt/tritonserver)
+  endif()
+  find_path(_TRITON_INC_DIR triton/core/tritonserver.h HINTS "${TRITON_SERVER_ROOT}/include" REQUIRED)
+  find_library(_TRITONSERVER_SO tritonserver HINTS "${TRITON_SERVER_ROOT}/lib" REQUIRED)
+  get_filename_component(_TRITON_LIB_DIR "${_TRITONSERVER_SO}" DIRECTORY)
+
+endif()
+
+# nvtx_scope.hpp is included unconditionally and compiles to no-ops without USE_NVTX, so its
+# include path is required in both configurations; only the CUDA path is gated.
+include_directories(${isaac_common_INCLUDE_DIRS})
+option(USE_NVTX "Enable NVTX markers for improved profiling (if available)" ON)
+if(USE_NVTX)
+  find_package(CUDAToolkit REQUIRED)
+  add_definitions(-DUSE_NVTX)
+  include_directories(${CUDAToolkit_INCLUDE_DIRS})
+endif()
+
+if(ISAAC_DEPLOY_BACKEND STREQUAL "triton")
+  add_library(tritonserver::tritonserver SHARED IMPORTED)
+  set_target_properties(tritonserver::tritonserver PROPERTIES
+    IMPORTED_LOCATION "${_TRITON_LIB_DIR}/libtritonserver.so"
+    INTERFACE_INCLUDE_DIRECTORIES "${_TRITON_INC_DIR}"
+  )
+
+endif()
+
+# =============================================================================
+# Include Directory Setup
+# =============================================================================
+
+# Create symlinks for build-time includes that match the install structure.
+# This allows both internal includes (core/types.hpp) and external includes
+# (isaac_deploy_core/core/types.hpp) to work during build.
+set(BUILD_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
+file(MAKE_DIRECTORY ${BUILD_INCLUDE_DIR}/isaac_deploy_core)
+file(CREATE_LINK
+  ${CMAKE_CURRENT_SOURCE_DIR}/core
+  ${BUILD_INCLUDE_DIR}/isaac_deploy_core/core
+  SYMBOLIC
+)
+file(CREATE_LINK
+  ${CMAKE_CURRENT_SOURCE_DIR}/inference_controller
+  ${BUILD_INCLUDE_DIR}/isaac_deploy_core/inference_controller
+  SYMBOLIC
+)
+
+# =============================================================================
+# Core Libraries
+# =============================================================================
+
+# core::types (header-only)
+add_library(types INTERFACE)
+target_include_directories(types INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(types INTERFACE ${TORCH_LIBRARIES})
+if(ISAAC_DEPLOY_BACKEND STREQUAL "onnxruntime")
+  target_compile_definitions(types INTERFACE ISAAC_DEPLOY_ONNX_RUNTIME)
+endif()
+
+# core::expected (header-only)
+add_library(expected INTERFACE)
+target_include_directories(expected INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+if(ISAAC_DEPLOY_USE_BUNDLED_TL_EXPECTED)
+  target_compile_definitions(expected INTERFACE ISAAC_DEPLOY_USE_BUNDLED_TL_EXPECTED)
+  target_link_libraries(expected INTERFACE rcpputils::rcpputils)
+else()
+  target_link_libraries(expected INTERFACE tl_expected::tl_expected)
+endif()
+
+# core::tensor_utils
+add_library(tensor_utils SHARED
+  core/tensor_utils.cpp
+)
+target_include_directories(tensor_utils PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(tensor_utils PUBLIC
+  types
+  expected
+  ${TORCH_LIBRARIES}
+)
+set_target_properties(tensor_utils PROPERTIES
+  INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+)
+
+# =============================================================================
+# Inference Controller - Input
+# =============================================================================
+
+# inference_controller/input::input_term
+add_library(input_term SHARED
+  inference_controller/input/input_term.cpp
+)
+target_include_directories(input_term PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(input_term PUBLIC
+  types
+  expected
+  tensor_utils
+  ${TORCH_LIBRARIES}
+  yaml-cpp
+)
+set_target_properties(input_term PROPERTIES
+  INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+)
+
+# inference_controller/input::input_builder
+add_library(input_builder SHARED
+  inference_controller/input/input_builder.cpp
+)
+target_include_directories(input_builder PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(input_builder PUBLIC
+  input_term
+  config_parser
+  types
+  expected
+)
+set_target_properties(input_builder PROPERTIES
+  INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+)
+
+# =============================================================================
+# Inference Controller - Output
+# =============================================================================
+
+# inference_controller/output::output_term
+add_library(output_term SHARED
+  inference_controller/output/output_term.cpp
+)
+target_include_directories(output_term PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(output_term PUBLIC
+  types
+  expected
+  tensor_utils
+  ${TORCH_LIBRARIES}
+  yaml-cpp
+)
+set_target_properties(output_term PROPERTIES
+  INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+)
+
+# inference_controller/output::output_builder
+add_library(output_builder SHARED
+  inference_controller/output/output_builder.cpp
+)
+target_include_directories(output_builder PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(output_builder PUBLIC
+  output_term
+  types
+  expected
+  config_parser
+)
+set_target_properties(output_builder PROPERTIES
+  INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+)
+
+# =============================================================================
+# Inference Controller - Runner
+# =============================================================================
+
+# inference_controller/runner::inference_runner_base (header-only)
+add_library(inference_runner_base INTERFACE)
+target_include_directories(inference_runner_base INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(inference_runner_base INTERFACE
+  types
+  expected
+)
+
+# inference_controller/runner::mock_runner
+add_library(mock_runner SHARED
+  inference_controller/runner/mock_runner.cpp
+)
+target_include_directories(mock_runner PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(mock_runner PUBLIC
+  inference_runner_base
+  types
+  expected
+  ${TORCH_LIBRARIES}
+)
+set_target_properties(mock_runner PROPERTIES
+  INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+)
+
+if(ISAAC_DEPLOY_BACKEND STREQUAL "triton")
+  set(ISAAC_DEPLOY_RUNNER_TARGET triton_runner)
+  # inference_controller/runner::triton_runner
+  add_library(triton_runner SHARED
+    inference_controller/runner/triton_runner.cpp
+  )
+  target_include_directories(triton_runner PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+    $<INSTALL_INTERFACE:include>
+  )
+  target_link_libraries(triton_runner PUBLIC
+    inference_runner_base
+    types
+    expected
+    ${TORCH_LIBRARIES}
+    tritonserver::tritonserver
+    dl
+    pthread
+  )
+  set_target_properties(triton_runner PROPERTIES
+    INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib;${_TRITON_LIB_DIR}"
+    BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib;${_TRITON_LIB_DIR}"
+  )
+
+else()
+  find_path(ONNXRUNTIME_INCLUDE_DIR onnxruntime_cxx_api.h HINTS /opt/onnxruntime/include REQUIRED)
+  find_library(ONNXRUNTIME_LIBRARY onnxruntime HINTS /opt/onnxruntime/lib REQUIRED)
+  add_library(onnx_runtime_runner SHARED inference_controller/runner/onnx_runtime_runner.cpp)
+  target_include_directories(onnx_runtime_runner PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+    $<INSTALL_INTERFACE:include>
+    ${ONNXRUNTIME_INCLUDE_DIR})
+  target_link_libraries(onnx_runtime_runner PUBLIC types expected ${TORCH_LIBRARIES} ${ONNXRUNTIME_LIBRARY})
+  set_target_properties(onnx_runtime_runner PROPERTIES
+    INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib;/opt/onnxruntime/lib")
+  set(ISAAC_DEPLOY_RUNNER_TARGET onnx_runtime_runner)
+endif()
+
+# inference_controller/runner::inference_runner
+add_library(inference_runner SHARED
+  inference_controller/runner/inference_runner.cpp
+)
+target_include_directories(inference_runner PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(inference_runner PUBLIC
+  mock_runner
+  ${ISAAC_DEPLOY_RUNNER_TARGET}
+  types
+  expected
+)
+set_target_properties(inference_runner PROPERTIES
+  INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib;${_TRITON_LIB_DIR}"
+  BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib;${_TRITON_LIB_DIR}"
+)
+
+# =============================================================================
+# Inference Controller - Config Parser
+# =============================================================================
+
+# inference_controller::config_parser
+add_library(config_parser SHARED
+  inference_controller/config_parser.cpp
+)
+target_include_directories(config_parser PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(config_parser PUBLIC
+  expected
+  yaml-cpp
+)
+
+# inference_controller::safetensors_loader
+add_library(safetensors_loader SHARED
+  inference_controller/safetensors_loader.cpp
+)
+target_include_directories(safetensors_loader PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(safetensors_loader PUBLIC
+  config_parser
+  types
+  expected
+  ${TORCH_LIBRARIES}
+  nlohmann_json::nlohmann_json
+)
+set_target_properties(safetensors_loader PROPERTIES
+  INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+)
+
+# =============================================================================
+# Inference Controller
+# =============================================================================
+
+add_library(inference_controller SHARED
+  inference_controller/inference_controller.cpp
+)
+target_include_directories(inference_controller PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(inference_controller PUBLIC
+  types
+  expected
+  input_builder
+  output_builder
+  inference_runner
+)
+set_target_properties(inference_controller PROPERTIES
+  INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib;${_TRITON_LIB_DIR}"
+  BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib;${_TRITON_LIB_DIR}"
+)
+
+# =============================================================================
+# Installation
+# =============================================================================
+
+# Install libraries.
+install(
+  TARGETS
+    types
+    expected
+    tensor_utils
+    input_term
+    input_builder
+    output_term
+    output_builder
+    inference_runner_base
+    mock_runner
+    ${ISAAC_DEPLOY_RUNNER_TARGET}
+    inference_runner
+    config_parser
+    safetensors_loader
+    inference_controller
+  EXPORT isaac_deploy_core_targets
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
+# Install headers.
+install(
+  DIRECTORY core/
+  DESTINATION include/isaac_deploy_core/core
+  FILES_MATCHING PATTERN "*.hpp"
+)
+install(
+  DIRECTORY inference_controller/
+  DESTINATION include/isaac_deploy_core/inference_controller
+  FILES_MATCHING PATTERN "*.hpp"
+  PATTERN "nvtx_trace_bridge.hpp" EXCLUDE
+)
+# Install test data.
+install(
+  DIRECTORY test_data/
+  DESTINATION share/${PROJECT_NAME}/test_data
+)
+
+# Export targets for downstream packages.
+ament_export_targets(isaac_deploy_core_targets HAS_LIBRARY_TARGET)
+if(ISAAC_DEPLOY_USE_BUNDLED_TL_EXPECTED)
+  ament_export_dependencies(yaml-cpp rcpputils nlohmann_json isaac_common)
+else()
+  ament_export_dependencies(yaml-cpp tl_expected nlohmann_json isaac_common)
+endif()
+
+# Export LibTorch and ONNX Runtime for downstream packages.
+# Configure the extras file from template to the build directory
+configure_file(
+  cmake/isaac_deploy_core-extras.cmake.in
+  cmake/isaac_deploy_core-extras.cmake
+  @ONLY
+)
+
+# Install the configured extras file
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/isaac_deploy_core-extras.cmake
+  DESTINATION share/${PROJECT_NAME}/cmake
+)
+
+# Register the configured extras file (relative to build directory)
+list(
+  APPEND ${PROJECT_NAME}_CONFIG_EXTRAS
+  "${CMAKE_CURRENT_BINARY_DIR}/cmake/isaac_deploy_core-extras.cmake"
+)
+
+# =============================================================================
+# Testing
+# =============================================================================
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  # Core tests.
+  ament_add_gtest(types_test core/types_test.cpp)
+  target_link_libraries(types_test types ${TORCH_LIBRARIES})
+  set_target_properties(types_test PROPERTIES
+    INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+    BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  )
+
+  ament_add_gtest(tensor_utils_test core/tensor_utils_test.cpp)
+  target_link_libraries(tensor_utils_test tensor_utils ${TORCH_LIBRARIES})
+  set_target_properties(tensor_utils_test PROPERTIES
+    INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+    BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  )
+
+  # Input tests.
+  ament_add_gtest(input_term_test inference_controller/input/input_term_test.cpp)
+  target_link_libraries(input_term_test input_term ${TORCH_LIBRARIES})
+  set_target_properties(input_term_test PROPERTIES
+    INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+    BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  )
+
+  ament_add_gtest(input_builder_test inference_controller/input/input_builder_test.cpp)
+  target_link_libraries(input_builder_test input_builder config_parser ${TORCH_LIBRARIES})
+  set_target_properties(input_builder_test PROPERTIES
+    INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+    BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  )
+
+  # Output tests.
+  ament_add_gtest(output_term_test inference_controller/output/output_term_test.cpp)
+  target_link_libraries(output_term_test output_term ${TORCH_LIBRARIES})
+  set_target_properties(output_term_test PROPERTIES
+    INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+    BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  )
+
+  ament_add_gtest(output_builder_test inference_controller/output/output_builder_test.cpp)
+  target_link_libraries(output_builder_test output_builder ${TORCH_LIBRARIES})
+  set_target_properties(output_builder_test PROPERTIES
+    INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+    BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  )
+
+  if(ISAAC_DEPLOY_BACKEND STREQUAL "triton")
+  # Runner tests.
+  ament_add_gtest(triton_runner_test inference_controller/runner/triton_runner_test.cpp)
+  target_link_libraries(triton_runner_test triton_runner ${TORCH_LIBRARIES})
+  set_target_properties(triton_runner_test PROPERTIES
+    INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib;${_TRITON_LIB_DIR}"
+    BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib;${_TRITON_LIB_DIR}"
+  )
+
+  endif()
+
+  # Config parser test.
+  ament_add_gtest(config_parser_test inference_controller/config_parser_test.cpp)
+  target_link_libraries(config_parser_test config_parser yaml-cpp)
+
+  # Safetensors loader test.
+  ament_add_gtest(safetensors_loader_test inference_controller/safetensors_loader_test.cpp)
+  target_link_libraries(safetensors_loader_test safetensors_loader ${TORCH_LIBRARIES})
+  set_target_properties(safetensors_loader_test PROPERTIES
+    INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+    BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
+  )
+
+  # Inference controller test.
+  ament_add_gtest(inference_controller_test inference_controller/inference_controller_test.cpp)
+  target_link_libraries(inference_controller_test inference_controller ${TORCH_LIBRARIES})
+  set_target_properties(inference_controller_test PROPERTIES
+    INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib;${_TRITON_LIB_DIR}"
+    BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib;${_TRITON_LIB_DIR}"
+  )
+
+endif()
+
+# Compare the new backend with independently generated Python ONNX Runtime outputs.
+if(BUILD_TESTING)
+  add_executable(onnx_runtime_parity_test inference_controller/runner/onnx_runtime_parity_test.cpp)
+  target_link_libraries(onnx_runtime_parity_test PRIVATE inference_runner safetensors_loader)
+endif()
+
+ament_package()

@@ -1,0 +1,15 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="g1_box_foot">
+  <xacro:arg name="hardware_type" default="mujoco"/>
+  <xacro:arg name="network_interface" default=""/>
+  <xacro:arg name="mujoco_model_path" default=""/>
+  <xacro:arg name="enable_viewer" default="true"/>
+  <xacro:include filename="$(find g1_description)/urdf/g1.urdf"/>
+  <xacro:if value="${'$(arg hardware_type)' == 'mujoco'}">
+    <xacro:include filename="$(find g1_description)/urdf/joint_interfaces.urdf.xacro"/>
+    <xacro:g1_ros2_control mujoco_model_path="$(arg mujoco_model_path)" enable_viewer="$(arg enable_viewer)"/>
+  </xacro:if>
+  <xacro:if value="${'$(arg hardware_type)' == 'real'}">
+    <xacro:include filename="$(find unitree_g1_description)/urdf/g1_real_ros2_control.urdf.xacro"/>
+    <xacro:g1_real_ros2_control network_interface="$(arg network_interface)" with_hands="false"/>
+  </xacro:if>
+</robot>

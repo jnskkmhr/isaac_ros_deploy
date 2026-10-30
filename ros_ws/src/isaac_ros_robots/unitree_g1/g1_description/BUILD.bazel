@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+
+load("@isaac_ros2_rules//ros:defs.bzl", "ament_index_share_files")
+load("@rules_python//python:defs.bzl", "py_test")
+load("//workspace/shared/pkg:ros_pkg.bzl", "ros")
+
+package(default_visibility = ["//visibility:public"])
+
+_SHARE_SRCS = [
+    "package.xml",
+    "LICENSE",
+    "LICENSE.unitree",
+] + glob([
+    "meshes/**",
+    "mjcf/**",
+    "urdf/**",
+])
+
+ament_index_share_files(
+    name = "g1_description_pkg",
+    package_name = "g1_description",
+    srcs = _SHARE_SRCS,
+    deps = ["//ros_ws/src/isaac_ros_robots/unitree_g1/unitree_g1_description:unitree_g1_description_pkg"],
+)
+
+ros.pkg_deb(
+    name = "ros_g1_description_deb",
+    share_srcs = _SHARE_SRCS,
+)
+
+py_test(
+    name = "test_actuator_limits",
+    srcs = ["test/test_actuator_limits.py"],
+    data = [
+        "mjcf/g1_29dof_rev_1_0_box_foot_improved_collision.xml",
+        "urdf/g1.urdf",
+    ],
+)

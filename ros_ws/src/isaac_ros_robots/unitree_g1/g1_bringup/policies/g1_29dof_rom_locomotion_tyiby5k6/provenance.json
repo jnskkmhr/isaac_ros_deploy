@@ -1,0 +1,16 @@
+{
+  "wandb_run": "tyiby5k6",
+  "wandb_project": "g1_29dof_soft_flat_ppo",
+  "checkpoint": "model_19999.pt",
+  "checkpoint_sha256": "7b7fc952ae608ebbcdce049a88b29bafa13b9fd6b7a8208b0fe8259986dc1aa5",
+  "export_task": "IsaacContrib-Velocity-Sand-G1-29dof-MPM-Play",
+  "bundle_name": "g1_29dof_rom_locomotion_tyiby5k6",
+  "checkpoint_selection": "Latest checkpoint, matching the requested play command.",
+  "policy_frequency_hz": 50,
+  "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor MLP weights unchanged.",
+  "validation": {
+    "recurrent_steps": 200,
+    "max_output_difference": 0.0,
+    "actor_mlp_tensors_matched": 8
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "wandb_run": "evh180n4",
+  "wandb_project": "g1_29dof_soft_flat_ppo",
+  "checkpoint": "model_39998.pt",
+  "checkpoint_sha256": "b4822adbd0b2aa29788a4a35ed2b2003a0c31cd9ccbc7cdb0ef8f0c5f6bc2171",
+  "export_task": "IsaacContrib-Velocity-Sand-G1-29dof-MPM-Play",
+  "bundle_name": "g1_29dof_mpm_locomotion_evh180n4",
+  "checkpoint_selection": "Checkpoint selected during the original export.",
+  "policy_frequency_hz": 50,
+  "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor MLP weights unchanged.",
+  "validation": {
+    "recurrent_steps": 200,
+    "max_output_difference": 0.0,
+    "actor_mlp_tensors_matched": 8
+  }
+}
