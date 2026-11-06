@@ -31,6 +31,11 @@ mounted at `/workspaces/isaac_ros_deploy`. Subsequent container starts use:
 ./scripts/activate.sh
 ```
 
+Policy bundles are shared by all backends under
+`ros_ws/src/isaac_ros_robots/unitree_g1/g1_bringup/policies/`.
+With the standard symlink build, adding or updating a bundle takes effect on the
+next launch; no package rebuild is needed.
+
 The container shell uses `admin` with your host UID/GID, so workspace files stay
 owned by your host user. The standard colored Bash prompt also applies in tmux.
 

@@ -1,0 +1,23 @@
+{
+  "wandb_run": "vpxo6opr",
+  "wandb_project": "g1_29dof_particle_nerd_mixed_terrain",
+  "wandb_entity": "jnskkmr",
+  "checkpoint": "model_27500.pt",
+  "checkpoint_sha256": "0c97b3391129ad986bde3da20d151576d62faf81b0311c4970c01604346d0fd4",
+  "run_state": "running",
+  "export_task": "IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play",
+  "export_date": "2026-11-05",
+  "policy_frequency_hz": 50,
+  "actor_observation_groups": [
+    "policy",
+    "command"
+  ],
+  "agent_configuration": "Saved OnPolicyRunner training configuration.",
+  "export_validation_examples": 5,
+  "ros_adaptation_validation_steps": 25,
+  "ros_adaptation_max_absolute_error": 0.0,
+  "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor weights unchanged.",
+  "checkpoint_selection": "Latest uploaded checkpoint at download time; W&B run state was running.",
+  "observation_note": "Deployment uses measured projected gravity without injected training bias/noise. Other actor observation settings match the saved training configuration.",
+  "configuration_validation": "Action scaling/order, actor observation scales/history/parameters, actuator configuration, default joint positions/velocities, and policy period matched saved training configuration before export."
+}

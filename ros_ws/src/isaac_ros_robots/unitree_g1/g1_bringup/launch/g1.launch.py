@@ -51,15 +51,10 @@ def _activate_controllers(_context, controllers):
 
 def generate_launch_description():
     """Declare the policy, hardware, and viewer launch options."""
-    policies = Path(get_package_share_directory('g1_bringup')) / 'policies'
-    policy_names = sorted(
-        bundle.parent.name for bundle in policies.glob('*/*.yaml')
-        if bundle.is_file() and bundle.stem == bundle.parent.name
-    )
     return LaunchDescription([
         DeclareLaunchArgument(
             'policy', default_value='g1_29dof_mpm_locomotion_evh180n4',
-            choices=policy_names,
+            description='Bundle directory name under g1_bringup/policies',
         ),
         DeclareLaunchArgument(
             'inference_controller_config_path', default_value='',
@@ -90,8 +85,10 @@ def _launch(context):
     bringup = Path(get_package_share_directory('g1_bringup'))
     bundle_override = LaunchConfiguration('inference_controller_config_path').perform(context)
     policy = LaunchConfiguration('policy').perform(context)
+    # Follow the launch-file symlink so development installs share the source bundles.
+    policies = Path(__file__).resolve().parents[1] / 'policies'
     bundle = (Path(bundle_override).resolve() if bundle_override
-              else bringup / 'policies' / policy / f'{policy}.yaml')
+              else policies / policy / f'{policy}.yaml')
     if not bundle.is_file():
         raise FileNotFoundError(f'LEAPP bundle YAML is not accessible: {bundle}')
     bundle_config = yaml.safe_load(bundle.read_text())

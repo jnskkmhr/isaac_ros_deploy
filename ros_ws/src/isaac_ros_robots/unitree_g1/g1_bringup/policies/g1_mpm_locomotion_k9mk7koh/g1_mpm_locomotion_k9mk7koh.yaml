@@ -1,5 +1,5 @@
 models:
-  IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play:
+  IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play:
     inputs:
     - name: robot_root_ang_vel_b
       dtype: float32
@@ -398,9 +398,9 @@ models:
         - right_wrist_yaw_joint
       isaaclab_connection: write:robot:write_joint_damping_to_sim_index
     parameters:
-      model_path: IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play.onnx
-      md5sum: ea9aae82241566f600e06f359c24c19e
-      sha256sum: 6ad03aa979bc0b1efbacdc6c462220db8b82cb531ab50c26dd2d7af398b04f40
+      model_path: IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play.onnx
+      md5sum: f089e10a2647cd88ef4ba27464aa229d
+      sha256sum: d640b7bf7d78fbbac33600beb99bf060ce42460b1aa80e220d51c4c0ec4225e2
       backend: onnx
       warp_segments: 0
       opset_version: 20
@@ -409,35 +409,35 @@ pipeline:
     frequency: 50.0
   data_flow: {}
   feedback_flow:
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_command_velocity_commands_num_pushes_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_command_velocity_commands_num_pushes_in
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_command_velocity_commands_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_command_velocity_commands_in
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_actions_num_pushes_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_actions_num_pushes_in
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_actions_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_actions_in
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_base_ang_vel_num_pushes_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_base_ang_vel_num_pushes_in
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_base_ang_vel_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_base_ang_vel_in
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_joint_pos_num_pushes_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_joint_pos_num_pushes_in
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_joint_pos_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_joint_pos_in
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_joint_vel_num_pushes_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_joint_vel_num_pushes_in
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_joint_vel_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_joint_vel_in
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_projected_gravity_num_pushes_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_projected_gravity_num_pushes_in
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_projected_gravity_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/h_policy_projected_gravity_in
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/last_action_out:
-    - IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play/last_action_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_command_velocity_commands_num_pushes_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_command_velocity_commands_num_pushes_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_command_velocity_commands_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_command_velocity_commands_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_actions_num_pushes_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_actions_num_pushes_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_actions_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_actions_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_base_ang_vel_num_pushes_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_base_ang_vel_num_pushes_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_base_ang_vel_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_base_ang_vel_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_joint_pos_num_pushes_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_joint_pos_num_pushes_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_joint_pos_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_joint_pos_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_joint_vel_num_pushes_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_joint_vel_num_pushes_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_joint_vel_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_joint_vel_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_projected_gravity_num_pushes_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_projected_gravity_num_pushes_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_projected_gravity_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/h_policy_projected_gravity_in
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/last_action_out:
+    - IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play/last_action_in
   initial_values: g1_mpm_locomotion_k9mk7koh_initial_values.safetensors
   inputs:
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play:
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play:
     - robot_root_ang_vel_b
     - robot_root_quat_w
     - robot_joint_pos
@@ -445,7 +445,7 @@ pipeline:
     - base_velocity
     - heading_target
   outputs:
-    IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play:
+    IsaacContrib-Velocity-Sand-Ascending-G1-29dof-MPM-Play:
     - joint_pos
     - joint_pos_kp_gains
     - joint_pos_kd_gains

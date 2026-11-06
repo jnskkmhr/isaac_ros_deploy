@@ -748,8 +748,14 @@ Select a bundle directory name with `policy:=NAME`.
 
 | W&B run | Bundle path | Checkpoint |
 | --- | --- | --- |
+| [y4t5ybra](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_particle_nerd_mixed_terrain/runs/y4t5ybra) | [policies/g1_mpm_locomotion_y4t5ybra/](policies/g1_mpm_locomotion_y4t5ybra/) | `model_29000.pt` |
+| [iylbaqt3](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_particle_nerd_mixed_terrain/runs/iylbaqt3) | [policies/g1_mpm_locomotion_iylbaqt3/](policies/g1_mpm_locomotion_iylbaqt3/) | `model_9000.pt` |
+| [vpxo6opr](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_particle_nerd_mixed_terrain/runs/vpxo6opr) | [policies/g1_mpm_locomotion_vpxo6opr/](policies/g1_mpm_locomotion_vpxo6opr/) | `model_27500.pt` |
+| [kevrlv51](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/kevrlv51) | [policies/g1_mpm_locomotion_kevrlv51/](policies/g1_mpm_locomotion_kevrlv51/) | `model_38500.pt` |
+| [jqur5jhm](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/jqur5jhm) | [policies/g1_mpm_locomotion_jqur5jhm/](policies/g1_mpm_locomotion_jqur5jhm/) | `model_14500.pt` |
+| [fxamfjso](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_particle_nerd_mixed_terrain/runs/fxamfjso) | [policies/g1_mpm_locomotion_fxamfjso/](policies/g1_mpm_locomotion_fxamfjso/) | `model_40500.pt` |
 | [8y9fhovl](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/8y9fhovl) | [policies/g1_mpm_locomotion_8y9fhovl/](policies/g1_mpm_locomotion_8y9fhovl/) | `model_38000.pt` |
-| [k9mk7koh](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/k9mk7koh) | [policies/g1_mpm_locomotion_k9mk7koh/](policies/g1_mpm_locomotion_k9mk7koh/) | `model_26500.pt` |
+| [k9mk7koh](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/k9mk7koh) | [policies/g1_mpm_locomotion_k9mk7koh/](policies/g1_mpm_locomotion_k9mk7koh/) | `model_39998.pt` |
 | [0hg1l3g4](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/0hg1l3g4) | [policies/g1_mpm_locomotion_0hg1l3g4/](policies/g1_mpm_locomotion_0hg1l3g4/) | `model_21500.pt` |
 | [wqqevars](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/wqqevars) | [policies/g1_mpm_locomotion_wqqevars/](policies/g1_mpm_locomotion_wqqevars/) | `model_24500.pt` |
 | [mz3xm6nh](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/mz3xm6nh) | [policies/g1_mpm_locomotion_mz3xm6nh/](policies/g1_mpm_locomotion_mz3xm6nh/) | `model_25000.pt` |
