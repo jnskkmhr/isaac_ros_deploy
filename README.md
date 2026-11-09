@@ -79,8 +79,29 @@ policy inference are separate GPU workloads.
 <details>
 <summary>Hardware</summary>
 
-Use the Ethernet interface connected to the G1 low-level board, including when
-running on a backpack Jetson. Replace `eth0` with that interface:
+First configure the robot Ethernet interface **on the host, outside Docker**.
+The same standalone utility as the monorepo is included:
+
+```bash
+cd ~/workspace/isaac_ros_deploy
+./ros_ws/src/isaac_ros_robots/isaac_ros_robots_tools/scripts/setup_network.py
+```
+
+Select **Unitree G1**, then the Ethernet interface connected to its low-level
+board. To specify the interface directly, append `--interface eth0`; the script
+still asks which robot to configure. It uses host `python3`, `sudo`, `ip`, and
+`ping`, and attempts a UFW rule if UFW is available.
+
+For G1 it replaces the selected interface's IP addresses with
+`192.168.123.99/24`, adds the DDS multicast route, attempts to allow incoming UDP
+from the robot subnet through UFW, and pings `192.168.123.161`. Select the robot
+Ethernet interface, not the interface carrying your SSH connection. The IP and
+route configuration is temporary and must be reapplied after reboot; the UFW
+rule persists.
+
+Then activate the container and use that same interface for the Unitree SDK,
+including when running on a backpack Jetson. Inside the container, replace
+`eth0` with that interface:
 
 ```bash
 ./scripts/run_tmux.sh g1_mpm_locomotion_8y9fhovl real eth0
@@ -125,6 +146,28 @@ state, TF, and robot description. Foxglove listens on port 8765. The old optiona
 the image and build use the host's native architecture.
 
 </details>
+
+## CPU inference on Jetson
+
+Build on the Jetson host itself; the `cpu` profile selects ARM64 dependencies automatically:
+
+```bash
+cd ~/workspace/isaac_ros_deploy
+./scripts/activate.sh --profile cpu --build
+```
+
+Inside the container, build the ROS packages and open the policy panes:
+
+```bash
+./scripts/build.sh
+./scripts/run_tmux.sh g1_mpm_locomotion_8y9fhovl real eth0
+```
+
+Replace `eth0` with the interface connected to the G1 low-level board. Use
+`BUILD_JOBS=1 ./scripts/build.sh` to reduce build memory use. For later container
+starts, use `./scripts/activate.sh --profile cpu` without `--build`.
+CPU inference has been tested on x86; native ARM64 build and runtime validation
+on Jetson are still pending.
 
 ## Older JetPack support
 
