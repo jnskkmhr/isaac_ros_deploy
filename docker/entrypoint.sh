@@ -28,7 +28,8 @@ if [[ $(id -u) == 0 && -n ${DEPLOY_UID:-} && $DEPLOY_UID != 0 ]]; then
         usermod --gid "$DEPLOY_GID" --shell /bin/bash admin
     fi
     sed -i 's/^#force_color_prompt=yes$/force_color_prompt=yes/' /home/admin/.bashrc
-    exec setpriv --reuid="$DEPLOY_UID" --regid="$DEPLOY_GID" --init-groups \
+    # Thor GPU device groups: /dev/nvmap (44) and /dev/dri/renderD* (993).
+    exec setpriv --reuid="$DEPLOY_UID" --regid="$DEPLOY_GID" --groups=44,993 \
         env HOME=/home/admin USER=admin LOGNAME=admin /deploy-entrypoint.sh "$@"
 fi
 
