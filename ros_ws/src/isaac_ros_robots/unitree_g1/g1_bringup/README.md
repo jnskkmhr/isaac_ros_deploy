@@ -759,6 +759,8 @@ Select a bundle directory name with `policy:=NAME`.
 
 Run IDs and checkpoint filenames come from each bundle's `provenance.json`.
 
+Native RSL-RL actor graphs and their input contracts are in [rsl_rl_onnx/](rsl_rl_onnx/README.md).
+
 Checkpoint status checked on 2026-11-09: all listed runs are finished except `x36a2qh8`, which is still running. Its `model_19500.pt` is the latest available checkpoint, not a completed training result.
 
 `g1_rigid_locomotion_2jiewizp` controls 15 leg/waist joints. Its deployment bundle fixes the pelvis-height command at 0.70 m and holds the other 14 joints at their trained default positions and PD gains. The learned actions are unchanged.

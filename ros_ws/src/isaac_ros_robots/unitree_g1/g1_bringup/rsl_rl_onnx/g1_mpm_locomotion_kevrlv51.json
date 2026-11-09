@@ -1,0 +1,34 @@
+{
+  "name": "g1_mpm_locomotion_kevrlv51",
+  "wandb_run": "kevrlv51",
+  "wandb_entity": "jnskkmr",
+  "wandb_project": "g1_29dof_mpm_mixed_terrain",
+  "checkpoint": "model_39998.pt",
+  "checkpoint_sha256": "71c72e78ac2ccb477e82f874006bec96ae20d5ea37bc7b9d1cc5a132f6059d81",
+  "run_state": "finished",
+  "export_method": "RSL-RL OnPolicyRunner.export_policy_to_onnx",
+  "input_name": "obs",
+  "input_shape": [
+    1,
+    937
+  ],
+  "observation_groups": [
+    "policy",
+    "command"
+  ],
+  "observation_group_sizes": [
+    930,
+    7
+  ],
+  "output_name": "actions",
+  "output_shape": [
+    1,
+    29
+  ],
+  "includes_observation_normalization": false,
+  "includes_observation_preprocessing": false,
+  "includes_action_scaling": false,
+  "validation_steps": 100,
+  "max_absolute_error_vs_pytorch": 4.76837158203125e-06,
+  "sha256": "44a414313367714defe0a0d8286741c2645c752a0c2c5b02a59db3e53b56bc9f"
+}

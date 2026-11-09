@@ -1,0 +1,34 @@
+{
+  "name": "g1_nerd_locomotion_x36a2qh8",
+  "wandb_run": "x36a2qh8",
+  "wandb_entity": "jnskkmr",
+  "wandb_project": "g1_29dof_particle_nerd_mixed_terrain",
+  "checkpoint": "model_19500.pt",
+  "checkpoint_sha256": "7a37397a9e0702bd434236e3fe632940a6d229f96c1aeed2c3abcad63f36d41f",
+  "run_state": "running",
+  "export_method": "RSL-RL OnPolicyRunner.export_policy_to_onnx",
+  "input_name": "obs",
+  "input_shape": [
+    1,
+    937
+  ],
+  "observation_groups": [
+    "policy",
+    "command"
+  ],
+  "observation_group_sizes": [
+    930,
+    7
+  ],
+  "output_name": "actions",
+  "output_shape": [
+    1,
+    29
+  ],
+  "includes_observation_normalization": false,
+  "includes_observation_preprocessing": false,
+  "includes_action_scaling": false,
+  "validation_steps": 100,
+  "max_absolute_error_vs_pytorch": 3.814697265625e-06,
+  "sha256": "71fbce2b895f4c58c0822c3575e4436d57c0c961955451b2e37271011eaeac58"
+}

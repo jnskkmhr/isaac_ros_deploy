@@ -1,0 +1,30 @@
+{
+  "wandb_run": "2jiewizp",
+  "wandb_project": "g1_29dof_locomotion",
+  "wandb_entity": "jnskkmr",
+  "checkpoint": "model_19999.pt",
+  "checkpoint_sha256": "2085f01b05cdacf75966b7dab1e9201e1f3d30641e084f1796b69fb9b2ffd539",
+  "run_state": "finished",
+  "name": "g1_rigid_locomotion_2jiewizp",
+  "export_method": "RSL-RL OnPolicyRunner.export_policy_to_onnx",
+  "input_name": "obs",
+  "input_shape": [
+    1,
+    83
+  ],
+  "observation_groups": [
+    "policy"
+  ],
+  "output_name": "actions",
+  "output_shape": [
+    1,
+    15
+  ],
+  "includes_observation_preprocessing": false,
+  "includes_action_scaling": false,
+  "includes_arm_targets": false,
+  "height_command": "Included in preprocessed observation; not fixed in this native actor graph.",
+  "validation_steps": 100,
+  "max_absolute_error_vs_pytorch": 2.86102294921875e-06,
+  "sha256": "dba006266c96279b9e764d3261c25e04ad3a36250c9740a8cdb963a92c5a79e9"
+}

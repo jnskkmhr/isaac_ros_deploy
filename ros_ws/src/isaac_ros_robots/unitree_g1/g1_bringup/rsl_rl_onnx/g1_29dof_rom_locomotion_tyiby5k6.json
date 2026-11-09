@@ -1,0 +1,34 @@
+{
+  "name": "g1_29dof_rom_locomotion_tyiby5k6",
+  "wandb_run": "tyiby5k6",
+  "wandb_entity": "jnskkmr",
+  "wandb_project": "g1_29dof_soft_flat_ppo",
+  "checkpoint": "model_19999.pt",
+  "checkpoint_sha256": "7b7fc952ae608ebbcdce049a88b29bafa13b9fd6b7a8208b0fe8259986dc1aa5",
+  "run_state": "finished",
+  "export_method": "RSL-RL OnPolicyRunner.export_policy_to_onnx",
+  "input_name": "obs",
+  "input_shape": [
+    1,
+    937
+  ],
+  "observation_groups": [
+    "policy",
+    "command"
+  ],
+  "observation_group_sizes": [
+    930,
+    7
+  ],
+  "output_name": "actions",
+  "output_shape": [
+    1,
+    29
+  ],
+  "includes_observation_normalization": false,
+  "includes_observation_preprocessing": false,
+  "includes_action_scaling": false,
+  "validation_steps": 100,
+  "max_absolute_error_vs_pytorch": 3.337860107421875e-06,
+  "sha256": "a1102aa31f4ca59c1b72f399b849ef316bd13f58df803baf66cbeb7dc06bffb2"
+}
