@@ -743,40 +743,25 @@ messages; a bag directory alone does not guarantee a complete recording.
 
 ## Policy bundles
 
-All bundles are under `ros_ws/src/isaac_ros_robots/unitree_g1/g1_bringup/policies/`.
+Active bundles are under `ros_ws/src/isaac_ros_robots/unitree_g1/g1_bringup/policies/`.
+Other bundles are preserved in [policies_archive/](policies_archive/README.md) and excluded from package installation.
 Select a bundle directory name with `policy:=NAME`.
 
 | W&B run | Bundle path | Checkpoint |
 | --- | --- | --- |
-| [y4t5ybra](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_particle_nerd_mixed_terrain/runs/y4t5ybra) | [policies/g1_mpm_locomotion_y4t5ybra/](policies/g1_mpm_locomotion_y4t5ybra/) | `model_29000.pt` |
-| [iylbaqt3](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_particle_nerd_mixed_terrain/runs/iylbaqt3) | [policies/g1_mpm_locomotion_iylbaqt3/](policies/g1_mpm_locomotion_iylbaqt3/) | `model_9000.pt` |
-| [vpxo6opr](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_particle_nerd_mixed_terrain/runs/vpxo6opr) | [policies/g1_mpm_locomotion_vpxo6opr/](policies/g1_mpm_locomotion_vpxo6opr/) | `model_27500.pt` |
-| [kevrlv51](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/kevrlv51) | [policies/g1_mpm_locomotion_kevrlv51/](policies/g1_mpm_locomotion_kevrlv51/) | `model_38500.pt` |
-| [jqur5jhm](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/jqur5jhm) | [policies/g1_mpm_locomotion_jqur5jhm/](policies/g1_mpm_locomotion_jqur5jhm/) | `model_14500.pt` |
-| [fxamfjso](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_particle_nerd_mixed_terrain/runs/fxamfjso) | [policies/g1_mpm_locomotion_fxamfjso/](policies/g1_mpm_locomotion_fxamfjso/) | `model_40500.pt` |
-| [8y9fhovl](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/8y9fhovl) | [policies/g1_mpm_locomotion_8y9fhovl/](policies/g1_mpm_locomotion_8y9fhovl/) | `model_38000.pt` |
-| [k9mk7koh](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/k9mk7koh) | [policies/g1_mpm_locomotion_k9mk7koh/](policies/g1_mpm_locomotion_k9mk7koh/) | `model_39998.pt` |
-| [0hg1l3g4](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/0hg1l3g4) | [policies/g1_mpm_locomotion_0hg1l3g4/](policies/g1_mpm_locomotion_0hg1l3g4/) | `model_21500.pt` |
-| [wqqevars](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/wqqevars) | [policies/g1_mpm_locomotion_wqqevars/](policies/g1_mpm_locomotion_wqqevars/) | `model_24500.pt` |
-| [mz3xm6nh](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/mz3xm6nh) | [policies/g1_mpm_locomotion_mz3xm6nh/](policies/g1_mpm_locomotion_mz3xm6nh/) | `model_25000.pt` |
-| [oxy2txmd](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/oxy2txmd) | [policies/g1_mpm_locomotion_oxy2txmd/](policies/g1_mpm_locomotion_oxy2txmd/) | `model_21500.pt` |
-| [3dzhq0v2](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/3dzhq0v2) | [policies/g1_mpm_locomotion_3dzhq0v2/](policies/g1_mpm_locomotion_3dzhq0v2/) | `model_13500.pt` |
-| [z84rvj6i](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/z84rvj6i) | [policies/g1_mpm_locomotion_z84rvj6i/](policies/g1_mpm_locomotion_z84rvj6i/) | `model_25000.pt` |
-| [17c4dih9](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/17c4dih9) | [policies/g1_mpm_locomotion_17c4dih9/](policies/g1_mpm_locomotion_17c4dih9/) | `model_25000.pt` |
-| [7cawp916](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/7cawp916) | [policies/g1_mpm_locomotion_7cawp916/](policies/g1_mpm_locomotion_7cawp916/) | `model_16000.pt` |
-| [gzi8enaw](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/gzi8enaw) | [policies/g1_mpm_locomotion_gzi8enaw/](policies/g1_mpm_locomotion_gzi8enaw/) | `model_11000.pt` |
-| [876gqr97](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/876gqr97) | [policies/g1_mpm_locomotion_876gqr97/](policies/g1_mpm_locomotion_876gqr97/) | `model_18000.pt` |
+| [2jiewizp](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_locomotion/runs/2jiewizp) | [policies/g1_rigid_locomotion_2jiewizp/](policies/g1_rigid_locomotion_2jiewizp/) | `model_19999.pt` |
+| [x36a2qh8](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_particle_nerd_mixed_terrain/runs/x36a2qh8) | [policies/g1_nerd_locomotion_x36a2qh8/](policies/g1_nerd_locomotion_x36a2qh8/) | `model_19500.pt` |
+| [jqur5jhm](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/jqur5jhm) | [policies/g1_mpm_locomotion_jqur5jhm/](policies/g1_mpm_locomotion_jqur5jhm/) | `model_19999.pt` |
+| [kevrlv51](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/kevrlv51) | [policies/g1_mpm_locomotion_kevrlv51/](policies/g1_mpm_locomotion_kevrlv51/) | `model_39998.pt` |
+| [8y9fhovl](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/8y9fhovl) | [policies/g1_mpm_locomotion_8y9fhovl/](policies/g1_mpm_locomotion_8y9fhovl/) | `model_44499.pt` |
 | [5f1xyc21](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/5f1xyc21) | [policies/g1_29dof_mpm_locomotion_5f1xyc21/](policies/g1_29dof_mpm_locomotion_5f1xyc21/) | `model_39998.pt` |
-| [evh180n4](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/evh180n4) | [policies/g1_29dof_mpm_locomotion_evh180n4/](policies/g1_29dof_mpm_locomotion_evh180n4/) | `model_39998.pt` |
-| [m2g8sl07](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_soft_rough_ppo/runs/m2g8sl07) | [policies/g1_29dof_mpm_locomotion_m2g8sl07/](policies/g1_29dof_mpm_locomotion_m2g8sl07/) | `model_19999.pt` |
-| [ufmtmwr9](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_soft_flat_ppo/runs/ufmtmwr9) | [policies/g1_29dof_mpm_locomotion_ufmtmwr9/](policies/g1_29dof_mpm_locomotion_ufmtmwr9/) | `model_19999.pt` |
-| [ftuwther](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_rigid_rough_ppo/runs/ftuwther) | [policies/g1_29dof_rigid_locomotion_ftuwther/](policies/g1_29dof_rigid_locomotion_ftuwther/) | `model_23000.pt` |
 | [tyiby5k6](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_soft_flat_ppo/runs/tyiby5k6) | [policies/g1_29dof_rom_locomotion_tyiby5k6/](policies/g1_29dof_rom_locomotion_tyiby5k6/) | `model_19999.pt` |
 
-`g1_mpm_locomotion_876gqr97` was exported with the tilting-sand balance task,
-which uses zero velocity commands.
-
 Run IDs and checkpoint filenames come from each bundle's `provenance.json`.
+
+Checkpoint status checked on 2026-11-09: all listed runs are finished except `x36a2qh8`, which is still running. Its `model_19500.pt` is the latest available checkpoint, not a completed training result.
+
+`g1_rigid_locomotion_2jiewizp` controls 15 leg/waist joints. Its deployment bundle fixes the pelvis-height command at 0.70 m and holds the other 14 joints at their trained default positions and PD gains. The learned actions are unchanged.
 
 For an external bundle, use `inference_controller_config_path:=/path/to/bundle.yaml`
 instead, keeping its referenced ONNX and safetensors files beside it.

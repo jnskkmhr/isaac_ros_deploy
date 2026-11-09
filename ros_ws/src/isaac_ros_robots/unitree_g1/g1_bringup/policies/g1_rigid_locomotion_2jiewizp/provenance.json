@@ -1,0 +1,21 @@
+{
+  "wandb_run": "2jiewizp",
+  "wandb_project": "g1_29dof_locomotion",
+  "wandb_entity": "jnskkmr",
+  "checkpoint": "model_19999.pt",
+  "checkpoint_sha256": "2085f01b05cdacf75966b7dab1e9201e1f3d30641e084f1796b69fb9b2ffd539",
+  "run_state": "finished",
+  "export_task": "IsaacContrib-Push-G1-29dof-Locomotion-Play",
+  "policy_frequency_hz": 50,
+  "export_validation_examples": 5,
+  "policy_controlled_joints": 15,
+  "observed_joints": 29,
+  "export_note": "Training-only random arm trajectories excluded. Learned action scaling, gains and observation settings verified against saved configuration. Height remains an external input.",
+  "ros_adaptation_status": "Validated",
+  "ros_adaptation": "Fixed pelvis-height command 0.70 m; appended trained default arm positions and gains; learned 15-joint outputs and all actor inputs preserved.",
+  "deployment_height_m": 0.7,
+  "arm_control": "Default trained joint positions with trained PD gains",
+  "ros_adaptation_validation_steps": 100,
+  "ros_adaptation_max_absolute_error": 0.0,
+  "native_onnx_max_absolute_error_vs_pytorch": 2.86102294921875e-06
+}

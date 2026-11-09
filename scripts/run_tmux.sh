@@ -3,7 +3,7 @@
 # Prepare four command lines inside the Isaac ROS container; Enter runs each one.
 set -euo pipefail
 
-policy=${1:-g1_29dof_mpm_locomotion_evh180n4}
+policy=${1:-g1_29dof_mpm_locomotion_5f1xyc21}
 hardware_type=${2:-mujoco}
 network_interface=${3:-}
 session=g1_deploy

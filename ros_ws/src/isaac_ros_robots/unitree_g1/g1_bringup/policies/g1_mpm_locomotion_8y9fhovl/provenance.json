@@ -2,8 +2,8 @@
   "wandb_run": "8y9fhovl",
   "wandb_entity": "jnskkmr",
   "wandb_project": "g1_29dof_mpm_mixed_terrain",
-  "checkpoint": "model_38000.pt",
-  "checkpoint_sha256": "f3648b324277b1cdbce7371ea9cfee1bdc8f6f809b8b261cb19042180d3ae322",
+  "checkpoint": "model_44499.pt",
+  "checkpoint_sha256": "811cbb88a3982f13873f0e42c7adf0c87614850e346c0060ecd83262570e4955",
   "export_task": "IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play",
   "policy_frequency_hz": 50.0,
   "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor weights unchanged.",
@@ -16,7 +16,16 @@
   "ros_adaptation_validation_steps": 25,
   "ros_adaptation_max_absolute_error": 0.0,
   "export_date": "2026-10-29",
-  "checkpoint_selection": "Latest uploaded checkpoint at download time; W&B run state was running.",
+  "checkpoint_selection": "Latest uploaded checkpoint checked on 2026-11-09; run state: finished.",
   "observation_note": "Training projected gravity used random roll/pitch bias of +/-3 degrees. Deployment uses unbiased projected_gravity from measured robot orientation; training observation noise is disabled. Other actor observation scales, history, and parameters match.",
-  "configuration_validation": "Action scaling and joint order, actor observation scales/history/parameters, actuator configuration, default joint positions, and policy period checked against saved training config."
+  "configuration_validation": "Action scaling and joint order, actor observation scales/history/parameters, actuator configuration, default joint positions, and policy period checked against saved training config.",
+  "run_state": "finished",
+  "checkpoint_checked_date": "2026-11-09",
+  "checkpoint_refresh_method": "Actor weights replaced after exact matching to previous checkpoint; graph operations, preprocessing, action scaling, gains and initial feedback state preserved.",
+  "checkpoint_refresh_validation": {
+    "steps": 100,
+    "sequences": 10,
+    "max_absolute_error_vs_pytorch": 4.291534423828125e-06,
+    "max_absolute_error_vs_rsl_rl_onnx": 0.0
+  }
 }

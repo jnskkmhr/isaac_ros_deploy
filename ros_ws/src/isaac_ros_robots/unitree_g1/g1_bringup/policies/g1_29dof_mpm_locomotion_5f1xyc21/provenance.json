@@ -4,12 +4,23 @@
   "checkpoint_sha256": "2d858c14766b64d69c7e19aae4edc3b8403d49b344bd6278fc77ec6b7a5938c4",
   "export_task": "IsaacContrib-Velocity-Sand-G1-29dof-MPM-Play",
   "bundle_name": "g1_29dof_mpm_locomotion_5f1xyc21",
-  "checkpoint_selection": "Checkpoint selected during the original export.",
+  "checkpoint_selection": "Latest uploaded checkpoint checked on 2026-11-09; run state: finished.",
   "policy_frequency_hz": 50,
   "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor MLP weights unchanged.",
   "validation": {
     "recurrent_steps": 200,
     "max_output_difference": 0.0,
     "actor_mlp_tensors_matched": 8
+  },
+  "wandb_entity": "jnskkmr",
+  "wandb_project": "g1_29dof_mpm_mixed_terrain",
+  "run_state": "finished",
+  "checkpoint_checked_date": "2026-11-09",
+  "checkpoint_refresh_method": "Actor weights replaced after exact matching to previous checkpoint; graph operations, preprocessing, action scaling, gains and initial feedback state preserved.",
+  "checkpoint_refresh_validation": {
+    "steps": 100,
+    "sequences": 10,
+    "max_absolute_error_vs_pytorch": 3.814697265625e-06,
+    "max_absolute_error_vs_rsl_rl_onnx": 0.0
   }
 }

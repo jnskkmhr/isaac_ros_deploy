@@ -2,8 +2,8 @@
   "wandb_run": "jqur5jhm",
   "wandb_entity": "jnskkmr",
   "wandb_project": "g1_29dof_mpm_mixed_terrain",
-  "checkpoint": "model_14500.pt",
-  "checkpoint_sha256": "160d7d4dae1975b8452837da20a11314eeb32a84ce0c5cbb6b42a2efa618a0d0",
+  "checkpoint": "model_19999.pt",
+  "checkpoint_sha256": "0852d6160c916f5f2c1bd873288657ecfb414b4fb76268d7314ab6f6ca6e7f44",
   "export_task": "IsaacContrib-Velocity-Sand-G1-29dof-MPM-MovingPatch-ParticleCache-Play",
   "policy_frequency_hz": 50,
   "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor weights unchanged.",
@@ -16,7 +16,16 @@
   "ros_adaptation_validation_steps": 25,
   "ros_adaptation_max_absolute_error": 0.0,
   "export_date": "2026-11-04",
-  "checkpoint_selection": "Latest uploaded checkpoint at download time; W&B run state was running.",
+  "checkpoint_selection": "Latest uploaded checkpoint checked on 2026-11-09; run state: finished.",
   "observation_note": "Training projected gravity used random roll/pitch bias of +/-3 degrees. Deployment uses unbiased projected_gravity from measured robot orientation; training observation noise is disabled. Other actor observation scales, history, and parameters match.",
-  "configuration_validation": "Action scaling and joint order, actor observation scales/history/parameters, actuator configuration, default joint positions and velocities, and policy period checked against saved training config."
+  "configuration_validation": "Action scaling and joint order, actor observation scales/history/parameters, actuator configuration, default joint positions and velocities, and policy period checked against saved training config.",
+  "run_state": "finished",
+  "checkpoint_checked_date": "2026-11-09",
+  "checkpoint_refresh_method": "Actor weights replaced after exact matching to previous checkpoint; graph operations, preprocessing, action scaling, gains and initial feedback state preserved.",
+  "checkpoint_refresh_validation": {
+    "steps": 100,
+    "sequences": 10,
+    "max_absolute_error_vs_pytorch": 4.76837158203125e-06,
+    "max_absolute_error_vs_rsl_rl_onnx": 0.0
+  }
 }

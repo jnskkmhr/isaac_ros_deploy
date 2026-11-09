@@ -46,7 +46,6 @@ class PolicyBundlesTest(unittest.TestCase):
                         for destination in destinations
                         if destination.startswith(name + '/')
                     }
-                    self.assertIn('heading_target', external)
                     self.assertEqual(len(external), len(set(external)))
                     self.assertEqual(
                         set(external) | feedback,
@@ -54,9 +53,11 @@ class PolicyBundlesTest(unittest.TestCase):
                     )
                     inputs = {item.get('kind'): item for item in model['inputs']}
                     self.assertEqual(inputs['command/body/velocity']['shape'], [1, 3])
-                    self.assertEqual(inputs['command/body/target_rotation']['shape'], [1, 4])
-                    for kind in ('command/body/velocity', 'command/body/target_rotation'):
-                        self.assertIn(kind, group['source_to_topic'])
+                    if 'command/body/target_rotation' in inputs:
+                        self.assertEqual(inputs['command/body/target_rotation']['shape'], [1, 4])
+                    for item in model['inputs']:
+                        if item['name'] in external and item.get('kind', '').startswith('command/'):
+                            self.assertIn(item['kind'], group['source_to_topic'])
                     self.assertEqual(
                         set(inputs['state/joint/position']['element_names'][0]), set(joints),
                     )

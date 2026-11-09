@@ -53,7 +53,7 @@ def generate_launch_description():
     """Declare the policy, hardware, and viewer launch options."""
     return LaunchDescription([
         DeclareLaunchArgument(
-            'policy', default_value='g1_29dof_mpm_locomotion_evh180n4',
+            'policy', default_value='g1_29dof_mpm_locomotion_5f1xyc21',
             description='Bundle directory name under g1_bringup/policies',
         ),
         DeclareLaunchArgument(

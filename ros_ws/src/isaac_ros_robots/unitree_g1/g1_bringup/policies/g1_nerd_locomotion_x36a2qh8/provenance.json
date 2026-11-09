@@ -1,0 +1,31 @@
+{
+  "wandb_run": "x36a2qh8",
+  "wandb_project": "g1_29dof_particle_nerd_mixed_terrain",
+  "wandb_entity": "jnskkmr",
+  "checkpoint": "model_19500.pt",
+  "checkpoint_sha256": "7a37397a9e0702bd434236e3fe632940a6d229f96c1aeed2c3abcad63f36d41f",
+  "run_state": "running",
+  "export_task": "IsaacContrib-Velocity-Sand-Dune-G1-29dof-MPM-Play",
+  "export_date": "2026-11-09",
+  "policy_frequency_hz": 50,
+  "actor_observation_groups": [
+    "policy",
+    "command"
+  ],
+  "agent_configuration": "Saved OnPolicyRunner training configuration.",
+  "export_validation_examples": 5,
+  "ros_adaptation_validation_steps": 25,
+  "ros_adaptation_max_absolute_error": 0.0,
+  "ros_adaptation": "Split velocity/heading inputs; cast external history counters to FP32 with INT64 internal computation. Actor weights unchanged.",
+  "checkpoint_selection": "Latest uploaded checkpoint checked on 2026-11-09; run state: running.",
+  "observation_note": "Deployment uses measured projected gravity without injected training bias/noise. Other actor observation settings match the saved training configuration.",
+  "configuration_validation": "Action scaling/order, actor observation scales/history/parameters, actuator configuration, default joint positions/velocities, and policy period matched saved training configuration before export.",
+  "checkpoint_checked_date": "2026-11-09",
+  "checkpoint_refresh_method": "Actor weights replaced after exact matching to previous checkpoint; graph operations, preprocessing, action scaling, gains and initial feedback state preserved.",
+  "checkpoint_refresh_validation": {
+    "steps": 100,
+    "sequences": 10,
+    "max_absolute_error_vs_pytorch": 3.814697265625e-06,
+    "max_absolute_error_vs_rsl_rl_onnx": 0.0
+  }
+}

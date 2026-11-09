@@ -399,8 +399,8 @@ models:
       isaaclab_connection: write:robot:write_joint_damping_to_sim_index
     parameters:
       model_path: IsaacContrib-Velocity-Sand-G1-29dof-MPM-MovingPatch-ParticleCache-Play.onnx
-      md5sum: e93a5215886b5e309ef2f8cd4ae4f53b
-      sha256sum: 77570667cd1ac1da49faab39add60e922d6307fa2dc1a83cbaf1db54e22a1007
+      md5sum: 107901a74fa44eb2205c3ab859349a03
+      sha256sum: 81a104be5736c9e5fbbb03c8ab42202e95d6c4388de8890b0993e3bd4f5f90c7
       backend: onnx
       warp_segments: 0
       opset_version: 20
