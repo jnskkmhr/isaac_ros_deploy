@@ -1,0 +1,116 @@
+{
+  "wandb_run": "lpwxe5i0",
+  "wandb_project": "g1_29dof_contact_benchmark",
+  "wandb_entity": "jnskkmr",
+  "checkpoint": "model_15000.pt",
+  "run_state": "running",
+  "run_name": "2026-11-12_22-28-11_rft_rough",
+  "name": "g1_rft_locomotion_lpwxe5i0",
+  "checkpoint_sha256": "fcc0138bd17c54bd187b1aec63b6f6905ee0d97c4d2576ca1e3359af9f6c6e27",
+  "export_date": "2026-11-13",
+  "export_checkout": "/home/jkamohara/isaac/experiment/ral-gm-loco-lab-3.0",
+  "policy_frequency_hz": 50,
+  "observation_groups": [
+    "policy",
+    "command"
+  ],
+  "observation_group_sizes": [
+    930,
+    7
+  ],
+  "history_length": 10,
+  "history_order": "Oldest to newest within each policy term; command is current only.",
+  "command_quaternion_order": "ROS xyzw converted to wxyz inside the graph",
+  "action_scale": 0.25,
+  "action_joint_names": [
+    "left_hip_pitch_joint",
+    "left_hip_roll_joint",
+    "left_hip_yaw_joint",
+    "left_knee_joint",
+    "left_ankle_pitch_joint",
+    "left_ankle_roll_joint",
+    "right_hip_pitch_joint",
+    "right_hip_roll_joint",
+    "right_hip_yaw_joint",
+    "right_knee_joint",
+    "right_ankle_pitch_joint",
+    "right_ankle_roll_joint",
+    "waist_yaw_joint",
+    "waist_roll_joint",
+    "waist_pitch_joint",
+    "left_shoulder_pitch_joint",
+    "left_shoulder_roll_joint",
+    "left_shoulder_yaw_joint",
+    "left_elbow_joint",
+    "left_wrist_roll_joint",
+    "left_wrist_pitch_joint",
+    "left_wrist_yaw_joint",
+    "right_shoulder_pitch_joint",
+    "right_shoulder_roll_joint",
+    "right_shoulder_yaw_joint",
+    "right_elbow_joint",
+    "right_wrist_roll_joint",
+    "right_wrist_pitch_joint",
+    "right_wrist_yaw_joint"
+  ],
+  "default_joint_positions": [
+    -0.31200000643730164,
+    0.0,
+    0.0,
+    0.6690000295639038,
+    -0.3630000054836273,
+    0.0,
+    -0.31200000643730164,
+    0.0,
+    0.0,
+    0.6690000295639038,
+    -0.3630000054836273,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.20000000298023224,
+    0.20000000298023224,
+    0.0,
+    0.6000000238418579,
+    0.0,
+    0.0,
+    0.0,
+    0.20000000298023224,
+    -0.20000000298023224,
+    0.0,
+    0.6000000238418579,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "checkpoint_selection": "Latest uploaded checkpoint at download time; run was still training.",
+  "export_validation_examples": 5,
+  "ros_adaptation_validation_steps": 100,
+  "ros_adaptation_max_absolute_error": 0.0,
+  "native_actor_max_absolute_error": 0.0,
+  "validation": "100 steps: observation history, projected gravity, heading quaternion order, raw actions, scaled targets, default pose, and PD gains.",
+  "native_validation": {
+    "validation_steps": 100,
+    "max_absolute_error_vs_checkpoint": 4.291534423828125e-06,
+    "inputs": [
+      {
+        "name": "obs",
+        "shape": [
+          1,
+          937
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "actions",
+        "shape": [
+          1,
+          29
+        ]
+      }
+    ],
+    "loaded_actor_tensors": 9
+  }
+}

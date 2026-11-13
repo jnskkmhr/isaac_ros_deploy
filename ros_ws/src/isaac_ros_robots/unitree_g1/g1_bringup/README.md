@@ -759,6 +759,8 @@ Select a bundle directory name with `policy:=NAME`.
 | `hiwy2c7j` (local PhysX/RFT checkpoint) | [policies/g1_rft_locomotion_hiwy2c7j/](policies/g1_rft_locomotion_hiwy2c7j/) | `model_18500.pt` |
 | [kyfj909z](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_contact_benchmark/runs/kyfj909z) | [policies/g1_rft_locomotion_kyfj909z/](policies/g1_rft_locomotion_kyfj909z/) | `model_19999.pt` |
 | [0s01bqjj](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_soft_vae_student_tcn/runs/0s01bqjj) | [policies/g1_rft_student_0s01bqjj/](policies/g1_rft_student_0s01bqjj/) | `model_18500.pt` |
+| [ioo32x36](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_contact_benchmark/runs/ioo32x36) | [policies/g1_rigid_locomotion_ioo32x36/](policies/g1_rigid_locomotion_ioo32x36/) | `model_15500.pt` |
+| [lpwxe5i0](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_contact_benchmark/runs/lpwxe5i0) | [policies/g1_rft_locomotion_lpwxe5i0/](policies/g1_rft_locomotion_lpwxe5i0/) | `model_15000.pt` |
 
 Run IDs and checkpoint filenames come from each bundle's `provenance.json`.
 
@@ -771,6 +773,10 @@ The new bundle passed 100-step numerical checks, retains the trained 50 Hz rate,
 `g1_rft_student_0s01bqjj` includes the TCN student encoder and actor from `model_18500.pt`; the run was still training when exported on 2026-11-12. It uses the current 100-value policy observation plus 30 frames of 64 proprioceptive values. Teacher networks and privileged terrain/dynamics inputs are not needed. PhysX startup stalled, so graph capture used the equivalent Newton task with matching saved observations, action scale, pose, and gains.
 
 The new bundle passed 100-step numerical checks, retains the trained 50 Hz rate, action scale 0.25, default joint pose, and PD gains. Hardware behavior has not been tested.
+
+`g1_rigid_locomotion_ioo32x36` uses `model_15500.pt` from the rigid rough-terrain run. It was still training when exported on 2026-11-13. The actor uses 930 history values plus seven current command values, with wxyz heading quaternions. The bundle retains all 29 joint actions, scale 0.25, default pose, gains, and 50 Hz policy rate. Numerical export checks passed; a 30-second direct LEAPP/MuJoCo recording was also produced. Hardware behavior has not been tested.
+
+`g1_rft_locomotion_lpwxe5i0` uses `model_15000.pt` from the RFT rough-terrain run. It was still training when exported on 2026-11-13. The actor uses 930 history values plus seven current command values, with wxyz heading quaternions. The bundle retains all 29 joint actions, scale 0.25, default pose, gains, and 50 Hz policy rate. Numerical export checks passed; a 30-second direct LEAPP/MuJoCo recording was also produced. Hardware behavior has not been tested.
 
 Native RSL-RL actor graphs and their input contracts are in [rsl_rl_onnx/](rsl_rl_onnx/README.md).
 

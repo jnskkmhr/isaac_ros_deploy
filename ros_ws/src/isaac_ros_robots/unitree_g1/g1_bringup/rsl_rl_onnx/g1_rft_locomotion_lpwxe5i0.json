@@ -1,0 +1,36 @@
+{
+  "name": "g1_rft_locomotion_lpwxe5i0",
+  "wandb_run": "lpwxe5i0",
+  "wandb_project": "g1_29dof_contact_benchmark",
+  "wandb_entity": "jnskkmr",
+  "checkpoint": "model_15000.pt",
+  "checkpoint_sha256": "fcc0138bd17c54bd187b1aec63b6f6905ee0d97c4d2576ca1e3359af9f6c6e27",
+  "run_state": "running",
+  "observation_groups": [
+    "policy",
+    "command"
+  ],
+  "observation_group_sizes": [
+    930,
+    7
+  ],
+  "history_order": "Oldest to newest within each policy term; command is current only.",
+  "command_quaternion_order": "ROS xyzw converted to wxyz inside the graph",
+  "export_method": "RSL-RL OnPolicyRunner.export_policy_to_onnx",
+  "input_name": "obs",
+  "input_shape": [
+    1,
+    937
+  ],
+  "output_name": "actions",
+  "output_shape": [
+    1,
+    29
+  ],
+  "includes_observation_normalization": false,
+  "includes_observation_preprocessing": false,
+  "includes_action_scaling": false,
+  "validation_steps": 100,
+  "max_absolute_error_vs_pytorch": 4.291534423828125e-06,
+  "sha256": "13a4be8ef95648019f74f6323d77fc178e09e7a9476f6573fd7cafc69fae95b5"
+}
