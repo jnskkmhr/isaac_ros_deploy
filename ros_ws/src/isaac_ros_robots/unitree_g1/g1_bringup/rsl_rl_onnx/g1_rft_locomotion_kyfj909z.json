@@ -1,0 +1,44 @@
+{
+  "name": "g1_rft_locomotion_kyfj909z",
+  "wandb_run": "kyfj909z",
+  "wandb_project": "g1_29dof_contact_benchmark",
+  "wandb_entity": "jnskkmr",
+  "checkpoint": "model_19999.pt",
+  "checkpoint_sha256": "0df84e60234ace93447e2ab1b9b9d3008310ba323ce7801dfa95d6f5c8013337",
+  "run_state": "finished",
+  "observation_groups": [
+    "policy"
+  ],
+  "observation_shapes": [
+    [
+      1000
+    ]
+  ],
+  "history_order": "Oldest to newest; policy flattened per term; student history concatenates 64 channels per frame.",
+  "command_quaternion_order": "ROS xyzw converted to wxyz inside the bundle",
+  "export_method": "RSL-RL OnPolicyRunner.export_policy_to_onnx; complete actor dependency graph",
+  "inputs": [
+    {
+      "name": "obs",
+      "shape": [
+        1,
+        1000
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "actions",
+      "shape": [
+        1,
+        29
+      ]
+    }
+  ],
+  "includes_observation_normalization": false,
+  "includes_observation_preprocessing": false,
+  "includes_action_scaling": false,
+  "validation_steps": 100,
+  "max_absolute_error_vs_pytorch": 9.5367431640625e-06,
+  "sha256": "109b0b918db378096f64f5c5ab814cb4fea5f137e1afd6b317bb50551894def2"
+}

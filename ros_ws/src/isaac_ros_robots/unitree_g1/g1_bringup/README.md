@@ -756,12 +756,25 @@ Select a bundle directory name with `policy:=NAME`.
 | [8y9fhovl](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/8y9fhovl) | [policies/g1_mpm_locomotion_8y9fhovl/](policies/g1_mpm_locomotion_8y9fhovl/) | `model_44499.pt` |
 | [5f1xyc21](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_mpm_mixed_terrain/runs/5f1xyc21) | [policies/g1_29dof_mpm_locomotion_5f1xyc21/](policies/g1_29dof_mpm_locomotion_5f1xyc21/) | `model_39998.pt` |
 | [tyiby5k6](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_soft_flat_ppo/runs/tyiby5k6) | [policies/g1_29dof_rom_locomotion_tyiby5k6/](policies/g1_29dof_rom_locomotion_tyiby5k6/) | `model_19999.pt` |
+| `hiwy2c7j` (local PhysX/RFT checkpoint) | [policies/g1_rft_locomotion_hiwy2c7j/](policies/g1_rft_locomotion_hiwy2c7j/) | `model_18500.pt` |
+| [kyfj909z](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_contact_benchmark/runs/kyfj909z) | [policies/g1_rft_locomotion_kyfj909z/](policies/g1_rft_locomotion_kyfj909z/) | `model_19999.pt` |
+| [0s01bqjj](https://forge.coreweave.com/wandb/jnskkmr/g1_29dof_soft_vae_student_tcn/runs/0s01bqjj) | [policies/g1_rft_student_0s01bqjj/](policies/g1_rft_student_0s01bqjj/) | `model_18500.pt` |
 
 Run IDs and checkpoint filenames come from each bundle's `provenance.json`.
 
+`g1_rft_locomotion_hiwy2c7j` uses the supplied local `model_18500.pt` from the PhysX/RFT task. It controls all 29 joints at 50 Hz, with ten-step observation history, action scale 0.25, and the saved default pose and PD gains. The bundle converts ROS heading quaternions from xyzw to the policy's wxyz order. Export and numerical checks passed; this bundle has not been tested on hardware.
+
+`g1_rft_locomotion_kyfj909z` is the finished Newton/RFT run (`model_19999.pt`). It uses 1,000 observation values with ten-frame history and heading quaternions converted to wxyz.
+
+The new bundle passed 100-step numerical checks, retains the trained 50 Hz rate, action scale 0.25, default joint pose, and PD gains. Hardware behavior has not been tested.
+
+`g1_rft_student_0s01bqjj` includes the TCN student encoder and actor from `model_18500.pt`; the run was still training when exported on 2026-11-12. It uses the current 100-value policy observation plus 30 frames of 64 proprioceptive values. Teacher networks and privileged terrain/dynamics inputs are not needed. PhysX startup stalled, so graph capture used the equivalent Newton task with matching saved observations, action scale, pose, and gains.
+
+The new bundle passed 100-step numerical checks, retains the trained 50 Hz rate, action scale 0.25, default joint pose, and PD gains. Hardware behavior has not been tested.
+
 Native RSL-RL actor graphs and their input contracts are in [rsl_rl_onnx/](rsl_rl_onnx/README.md).
 
-Checkpoint status checked on 2026-11-09: all listed runs are finished except `x36a2qh8`, which is still running. Its `model_19500.pt` is the latest available checkpoint, not a completed training result.
+Checkpoint status checked on 2026-11-09: the previously downloaded runs are finished except `x36a2qh8`, which is still running. Its `model_19500.pt` is the latest available checkpoint, not a completed training result.
 
 `g1_rigid_locomotion_2jiewizp` controls 15 leg/waist joints. Its deployment bundle fixes the pelvis-height command at 0.70 m and holds the other 14 joints at their trained default positions and PD gains. The learned actions are unchanged.
 

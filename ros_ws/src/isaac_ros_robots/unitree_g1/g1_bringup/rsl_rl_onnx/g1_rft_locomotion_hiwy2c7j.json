@@ -1,0 +1,42 @@
+{
+  "name": "g1_rft_locomotion_hiwy2c7j",
+  "wandb_run": "hiwy2c7j",
+  "wandb_project": "g1_29dof_contact_benchmark",
+  "checkpoint": "model_18500.pt",
+  "checkpoint_source": "/tmp/hiwy2c7j-inference/model_18500.pt",
+  "checkpoint_sha256": "6a14c5740305c0798a9a1c17e744d6dcecb3c9666ed8632d31fe1f2d51236d95",
+  "export_method": "Existing RSL-RL playback ONNX, verified against the supplied checkpoint and packed with embedded weights.",
+  "input_name": "obs",
+  "input_shape": [
+    1,
+    1000
+  ],
+  "observation_groups": [
+    "policy"
+  ],
+  "observation_group_sizes": [
+    1000
+  ],
+  "output_name": "actions",
+  "output_shape": [
+    1,
+    29
+  ],
+  "includes_observation_normalization": false,
+  "includes_observation_preprocessing": false,
+  "includes_action_scaling": false,
+  "observation_terms": [
+    "base_ang_vel",
+    "projected_gravity",
+    "velocity_commands",
+    "joint_pos",
+    "joint_vel",
+    "actions"
+  ],
+  "history_length": 10,
+  "history_order": "term; oldest to newest within each term",
+  "command_quaternion_order": "wxyz within each seven-value command observation",
+  "validation_steps": 100,
+  "max_absolute_error_vs_pytorch": 9.5367431640625e-06,
+  "sha256": "c9ca9ac0f1b74a3bca0e5d7d0f9031d1a464b4f05af04eba725a66c31035dd2c"
+}

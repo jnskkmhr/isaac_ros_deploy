@@ -15,5 +15,14 @@ The six MPM/NeRD/ROM actors concatenate `policy` (930 values) then `command` (7 
 | [g1_mpm_locomotion_kevrlv51.onnx](g1_mpm_locomotion_kevrlv51.onnx) | `model_39998.pt` | finished | 937 | 29 |
 | [g1_nerd_locomotion_x36a2qh8.onnx](g1_nerd_locomotion_x36a2qh8.onnx) | `model_19500.pt` | running | 937 | 29 |
 | [g1_rigid_locomotion_2jiewizp.onnx](g1_rigid_locomotion_2jiewizp.onnx) | `model_19999.pt` | finished | 83 | 15 |
+| [g1_rft_locomotion_hiwy2c7j.onnx](g1_rft_locomotion_hiwy2c7j.onnx) | `model_18500.pt` | local checkpoint; status not queried | 1000 | 29 |
+| [g1_rft_locomotion_kyfj909z.onnx](g1_rft_locomotion_kyfj909z.onnx) | `model_19999.pt` | finished | 1000 | 29 |
+| [g1_rft_student_0s01bqjj.onnx](g1_rft_student_0s01bqjj.onnx) | `model_18500.pt` | running | 2020 | 29 |
 
-All models were checked over 100 inference steps. LEAPP raw action outputs matched native ONNX outputs; maximum difference against PyTorch was below 0.000005. `running` means the latest available checkpoint is not yet a completed training run.
+All models were checked over 100 inference steps. LEAPP raw action outputs matched native ONNX outputs; maximum difference against PyTorch was below 0.00001. `running` means the latest available checkpoint is not yet a completed training run.
+
+The RFT actor (`hiwy2c7j`) uses one 1,000-value `policy` group. It concatenates ten samples per term in this order: angular velocity, projected gravity, seven-value velocity/heading command, relative joint positions, joint velocities, and previous actions. Each term runs oldest to newest; heading quaternions use wxyz within the actor observation.
+
+`kyfj909z` uses the same 1,000-value observation layout as `hiwy2c7j`: ten samples per policy term, including the seven-value command, with wxyz heading quaternions.
+
+`0s01bqjj` accepts `obs` with 2,020 values: current `policy` (100), followed by `student_history` flattened from `(30, 64)` in oldest-to-newest frame order. History channels are angular velocity, projected gravity, relative joint positions, and joint velocities. The graph includes the TCN encoder and actor; it requires no teacher or privileged inputs. The LEAPP bundle constructs this history from live measurements.

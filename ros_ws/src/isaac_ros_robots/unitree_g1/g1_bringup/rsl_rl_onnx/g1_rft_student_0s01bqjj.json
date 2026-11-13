@@ -1,0 +1,49 @@
+{
+  "name": "g1_rft_student_0s01bqjj",
+  "wandb_run": "0s01bqjj",
+  "wandb_project": "g1_29dof_soft_vae_student_tcn",
+  "wandb_entity": "jnskkmr",
+  "checkpoint": "model_18500.pt",
+  "checkpoint_sha256": "c258db4a6fa4f89cefed7cc0686f0dcbb2675017e6b916fb9edd4347e02b08d0",
+  "run_state": "running",
+  "observation_groups": [
+    "policy",
+    "student_history"
+  ],
+  "observation_shapes": [
+    [
+      100
+    ],
+    [
+      30,
+      64
+    ]
+  ],
+  "history_order": "Oldest to newest; policy flattened per term; student history concatenates 64 channels per frame.",
+  "command_quaternion_order": "ROS xyzw converted to wxyz inside the bundle",
+  "export_method": "RSL-RL OnPolicyRunner.export_policy_to_onnx; complete actor dependency graph",
+  "inputs": [
+    {
+      "name": "obs",
+      "shape": [
+        1,
+        2020
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "actions",
+      "shape": [
+        1,
+        29
+      ]
+    }
+  ],
+  "includes_observation_normalization": false,
+  "includes_observation_preprocessing": false,
+  "includes_action_scaling": false,
+  "validation_steps": 100,
+  "max_absolute_error_vs_pytorch": 4.291534423828125e-06,
+  "sha256": "964d7f6bcd51ea6677432681353cb838201192eadc2b0af53a493d626e44b5f2"
+}
